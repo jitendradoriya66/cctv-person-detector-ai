@@ -1,0 +1,8 @@
+ultralytics
+opencv-python
+fastapi
+uvicorn
+jinja2
+python-multipart
+requests
+python-dotenv
