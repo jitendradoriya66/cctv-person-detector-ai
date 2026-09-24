@@ -90,9 +90,15 @@ class CameraManager:
     def _process_stream(self):
         cap = cv2.VideoCapture(self.camera_source)
         if not cap.isOpened():
-            print(f"❌ Failed to open video source: {self.camera_source}")
-            self.is_running = False
-            return
+            print(f"⚠️ Video source '{self.camera_source}' unavailable (no physical webcam detected). Attempting online CCTV demo video stream fallback...")
+            fallback_url = "https://raw.githubusercontent.com/intel-iot-devkit/sample-videos/master/people-detection.mp4"
+            cap = cv2.VideoCapture(fallback_url)
+            if not cap.isOpened():
+                print(f"❌ Failed to open fallback video stream: {fallback_url}")
+                self.is_running = False
+                return
+            else:
+                self.camera_name = "Demo CCTV Stream"
 
         frame_count = 0
         start_time = time.time()
@@ -100,14 +106,10 @@ class CameraManager:
         while self.is_running:
             ret, frame = cap.read()
             if not ret:
-                # If reading video file, loop back to start
-                if isinstance(self.camera_source, str) and os.path.exists(self.camera_source):
-                    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                    continue
-                else:
-                    print("❌ Error reading frame from camera or stream ended.")
-                    time.sleep(0.5)
-                    continue
+                # If reading video stream or file, loop back to start
+                cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                time.sleep(0.05)
+                continue
 
             frame_count += 1
             now = time.time()
