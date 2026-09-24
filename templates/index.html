@@ -123,6 +123,20 @@
             color: var(--accent-red);
         }
 
+        .ws-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid rgba(99, 102, 241, 0.4);
+            color: #A5B4FC;
+            white-space: nowrap;
+        }
+
         .status-dot {
             width: 7px;
             height: 7px;
@@ -150,6 +164,7 @@
             border: none;
             outline: none;
             white-space: nowrap;
+            text-decoration: none;
         }
 
         .btn-primary {
@@ -374,6 +389,16 @@
             display: flex;
             flex-direction: column;
             gap: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .latest-event-card.flash {
+            animation: flashBorder 1s ease-out;
+        }
+
+        @keyframes flashBorder {
+            0% { border-color: #10B981; box-shadow: 0 0 20px rgba(16, 185, 129, 0.6); }
+            100% { border-color: rgba(16, 185, 129, 0.4); box-shadow: none; }
         }
 
         .event-thumbnail-box {
@@ -441,6 +466,15 @@
             overflow: hidden;
             transition: all 0.2s ease;
             cursor: pointer;
+        }
+
+        .gallery-card.new-item {
+            animation: slideInDown 0.4s ease-out;
+        }
+
+        @keyframes slideInDown {
+            from { opacity: 0; transform: translateY(-15px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .gallery-card:hover {
@@ -538,100 +572,25 @@
 
         .close-btn:hover { color: white; }
 
-        /* ============================================================ */
-        /* MOBILE RESPONSIVE MEDIA QUERIES                              */
-        /* ============================================================ */
-
         @media (max-width: 1024px) {
-            .main-grid {
-                grid-template-columns: 1fr;
-            }
+            .main-grid { grid-template-columns: 1fr; }
         }
 
         @media (max-width: 768px) {
-            header {
-                padding: 12px 16px;
-                flex-direction: column;
-                align-items: stretch;
-            }
-
-            .header-actions {
-                justify-content: space-between;
-                width: 100%;
-            }
-
-            .container {
-                padding: 14px 16px;
-                gap: 16px;
-            }
-
-            .stats-grid {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 10px;
-            }
-
-            .stat-card {
-                padding: 12px;
-                gap: 10px;
-            }
-
-            .stat-icon {
-                width: 36px;
-                height: 36px;
-                border-radius: 8px;
-            }
-
-            .stat-info .stat-value {
-                font-size: 1.15rem;
-            }
-
-            .card {
-                padding: 14px;
-                gap: 12px;
-            }
-
-            .stream-controls-bar {
-                flex-direction: column;
-                align-items: stretch;
-                gap: 10px;
-            }
-
-            .form-group {
-                width: 100%;
-                justify-content: space-between;
-            }
-
-            .form-select, .form-input {
-                width: 100%;
-            }
-
-            .gallery-grid {
-                grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-                gap: 10px;
-            }
-
-            .gallery-card-img {
-                height: 110px;
-            }
-
-            .gallery-card-body {
-                padding: 8px 10px;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .logo-text h1 {
-                font-size: 1.05rem;
-            }
-
-            .stats-grid {
-                grid-template-columns: 1fr 1fr;
-            }
-
-            .btn {
-                padding: 7px 10px;
-                font-size: 0.78rem;
-            }
+            header { padding: 12px 16px; flex-direction: column; align-items: stretch; }
+            .header-actions { justify-content: space-between; width: 100%; }
+            .container { padding: 14px 16px; gap: 16px; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+            .stat-card { padding: 12px; gap: 10px; }
+            .stat-icon { width: 36px; height: 36px; border-radius: 8px; }
+            .stat-info .stat-value { font-size: 1.15rem; }
+            .card { padding: 14px; gap: 12px; }
+            .stream-controls-bar { flex-direction: column; align-items: stretch; gap: 10px; }
+            .form-group { width: 100%; justify-content: space-between; }
+            .form-select, .form-input { width: 100%; }
+            .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+            .gallery-card-img { height: 110px; }
+            .gallery-card-body { padding: 8px 10px; }
         }
     </style>
 </head>
@@ -650,17 +609,22 @@
         </div>
 
         <div class="header-actions">
+            <div id="wsBadge" class="ws-badge">
+                <span class="status-dot" style="background: #818CF8; box-shadow: 0 0 8px #818CF8;"></span>
+                <span id="wsText">WebSocket Connecting...</span>
+            </div>
+
             <div id="statusBadge" class="status-badge offline">
                 <span class="status-dot"></span>
                 <span id="statusText">System Offline</span>
             </div>
 
-            <button id="startBtn" class="btn btn-primary" onclick="startCamera()">
+            <a href="/redirect/start" class="btn btn-primary" id="startBtn">
                 <i data-lucide="play" style="width: 14px; height: 14px;"></i> Start Stream
-            </button>
-            <button id="stopBtn" class="btn btn-danger" onclick="stopCamera()" style="display: none;">
+            </a>
+            <a href="/redirect/stop" class="btn btn-danger" id="stopBtn" style="display: none;">
                 <i data-lucide="square" style="width: 14px; height: 14px;"></i> Stop Stream
-            </button>
+            </a>
             <button class="btn btn-secondary" onclick="openSettingsModal()">
                 <i data-lucide="settings" style="width: 14px; height: 14px;"></i> Settings
             </button>
@@ -757,7 +721,7 @@
                 </div>
 
                 <div id="latestEventContainer">
-                    <div class="latest-event-card">
+                    <div id="latestCard" class="latest-event-card">
                         <div class="event-thumbnail-box">
                             <img id="latestEventImg" src="https://images.unsplash.com/photo-1557597774-9d273605dfa9?w=600&auto=format&fit=crop&q=60" alt="Latest Event">
                             <span class="event-badge">NEW EVENT</span>
@@ -849,110 +813,124 @@
     <script>
         lucide.createIcons();
 
+        let ws = null;
         let isStreaming = false;
 
-        document.getElementById('cameraSourceSelect').addEventListener('change', function(e) {
-            const customGroup = document.getElementById('customSourceInputGroup');
-            if (e.target.value === 'rtsp') {
-                customGroup.style.display = 'flex';
-            } else {
-                customGroup.style.display = 'none';
-            }
-        });
-
-        function updateConfidenceLabel(val) {
-            document.getElementById('confidenceVal').innerText = Math.round(val * 100) + '%';
+        // Audio Alert Synthesizer
+        function playAlertBeep() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, ctx.currentTime); // A5 note
+                gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.4);
+            } catch(e) {}
         }
 
-        async function startCamera() {
-            let source = document.getElementById('cameraSourceSelect').value;
-            if (source === 'rtsp') {
-                source = document.getElementById('customSourceInput').value.trim();
-                if (!source) {
-                    alert("Please enter a valid RTSP stream URL or video path!");
-                    return;
-                }
-            } else {
-                source = parseInt(source);
-            }
+        // WebSockets Initialization
+        function initWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
 
-            const confidence = parseFloat(document.getElementById('confidenceRange').value);
-            const cameraName = document.getElementById('settingCameraName').value || "Entrance Camera";
+            ws = new WebSocket(wsUrl);
 
-            try {
-                const res = await fetch('/api/start-camera', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ source: source, confidence: confidence, camera_name: cameraName })
-                });
-                const data = await res.json();
-                
-                if (data.status === 'success') {
-                    isStreaming = true;
-                    document.getElementById('videoFeed').src = '/video_feed?' + new Date().getTime();
-                    document.getElementById('videoFeed').style.display = 'block';
-                    document.getElementById('streamPlaceholder').style.display = 'none';
-                    
-                    document.getElementById('startBtn').style.display = 'none';
-                    document.getElementById('stopBtn').style.display = 'inline-flex';
-                    
-                    document.getElementById('statusBadge').className = 'status-badge';
-                    document.getElementById('statusText').innerText = 'System Live';
+            ws.onopen = function() {
+                console.log("⚡ WebSocket Connected to Server");
+                document.getElementById('wsBadge').style.borderColor = 'rgba(16, 185, 129, 0.4)';
+                document.getElementById('wsText').innerText = '⚡ WebSocket Live';
+            };
+
+            ws.onmessage = function(evt) {
+                try {
+                    const data = JSON.parse(evt.data);
+                    if (data.type === 'STATUS_UPDATE') {
+                        handleStatusUpdate(data.status);
+                    } else if (data.type === 'NEW_EVENT') {
+                        handleNewEvent(data.event);
+                    }
+                } catch(err) {
+                    console.error("WS Message parse error:", err);
                 }
-            } catch (err) {
-                console.error("Failed to start camera:", err);
-            }
+            };
+
+            ws.onclose = function() {
+                console.log("🔌 WebSocket Disconnected. Retrying in 3s...");
+                document.getElementById('wsBadge').style.borderColor = 'rgba(239, 68, 68, 0.4)';
+                document.getElementById('wsText').innerText = '⚡ WS Reconnecting...';
+                setTimeout(initWebSocket, 3000);
+            };
         }
 
-        async function stopCamera() {
-            try {
-                await fetch('/api/stop-camera', { method: 'POST' });
-                isStreaming = false;
-                document.getElementById('videoFeed').src = '';
-                document.getElementById('videoFeed').style.display = 'none';
-                document.getElementById('streamPlaceholder').style.display = 'flex';
+        function handleStatusUpdate(data) {
+            document.getElementById('statFps').innerText = data.fps + ' FPS';
+            document.getElementById('statPersonsCount').innerText = data.stats ? data.stats.persons_count : 0;
+            document.getElementById('statLastTime').innerText = data.last_event_time ? data.last_event_time.split(' ')[1] : '--:--:--';
+            document.getElementById('statCameraName').innerText = data.camera_name;
+            document.getElementById('inFrameBadge').innerText = data.active_persons + ' in frame';
 
+            if (data.is_running && !isStreaming) {
+                document.getElementById('startBtn').style.display = 'none';
+                document.getElementById('stopBtn').style.display = 'inline-flex';
+                document.getElementById('statusBadge').className = 'status-badge';
+                document.getElementById('statusText').innerText = 'System Live';
+                document.getElementById('videoFeed').src = '/video_feed';
+                document.getElementById('videoFeed').style.display = 'block';
+                document.getElementById('streamPlaceholder').style.display = 'none';
+                isStreaming = true;
+            } else if (!data.is_running && isStreaming) {
                 document.getElementById('startBtn').style.display = 'inline-flex';
                 document.getElementById('stopBtn').style.display = 'none';
-
                 document.getElementById('statusBadge').className = 'status-badge offline';
                 document.getElementById('statusText').innerText = 'System Offline';
-            } catch (err) {
-                console.error("Failed to stop camera:", err);
+                document.getElementById('videoFeed').style.display = 'none';
+                document.getElementById('streamPlaceholder').style.display = 'flex';
+                isStreaming = false;
             }
         }
 
-        async function updateStatus() {
-            try {
-                const res = await fetch('/api/status');
-                const data = await res.json();
+        function handleNewEvent(ev) {
+            playAlertBeep();
 
-                document.getElementById('statFps').innerText = data.fps + ' FPS';
-                document.getElementById('statPersonsCount').innerText = data.stats.persons_count;
-                document.getElementById('statLastTime').innerText = data.stats.last_detection !== 'None' ? data.stats.last_detection.split(' ')[1] : '--:--:--';
-                document.getElementById('statCameraName').innerText = data.camera_name;
-                document.getElementById('inFrameBadge').innerText = data.active_persons + ' in frame';
+            // Flash Latest Event Card
+            const card = document.getElementById('latestCard');
+            card.classList.remove('flash');
+            void card.offsetWidth; // trigger reflow
+            card.classList.add('flash');
 
-                if (data.latest_event) {
-                    document.getElementById('latestEventImg').src = '/screenshots/' + data.latest_event.filename;
-                    document.getElementById('latestTrackId').innerText = '#' + data.latest_event.track_id;
-                    document.getElementById('latestConf').innerText = Math.round(data.latest_event.confidence * 100) + '%';
-                    document.getElementById('latestTime').innerText = data.latest_event.time;
-                }
+            document.getElementById('latestEventImg').src = '/screenshots/' + ev.filename;
+            document.getElementById('latestTrackId').innerText = '#' + ev.track_id;
+            document.getElementById('latestConf').innerText = Math.round(ev.confidence * 100) + '%';
+            document.getElementById('latestTime').innerText = ev.time;
 
-                if (data.is_running && !isStreaming) {
-                    document.getElementById('startBtn').style.display = 'none';
-                    document.getElementById('stopBtn').style.display = 'inline-flex';
-                    document.getElementById('statusBadge').className = 'status-badge';
-                    document.getElementById('statusText').innerText = 'System Live';
-                    document.getElementById('videoFeed').src = '/video_feed';
-                    document.getElementById('videoFeed').style.display = 'block';
-                    document.getElementById('streamPlaceholder').style.display = 'none';
-                    isStreaming = true;
-                }
-            } catch (err) {
-                console.error("Status poll error:", err);
-            }
+            // Prepend new event to gallery grid instantly
+            const grid = document.getElementById('galleryGrid');
+            const newCard = document.createElement('div');
+            newCard.className = 'gallery-card new-item';
+            newCard.onclick = () => openImageModal('/screenshots/' + ev.filename, {
+                track_id: ev.track_id,
+                object_class: ev.object_class,
+                camera_name: ev.camera_name,
+                datetime_str: ev.time,
+                confidence: ev.confidence
+            });
+            newCard.innerHTML = `
+                <img class="gallery-card-img" src="/screenshots/${ev.filename}" alt="Track ${ev.track_id}">
+                <div class="gallery-card-body">
+                    <div class="gallery-card-header">
+                        <span class="track-id-tag">#ID ${ev.track_id}</span>
+                        <span class="conf-tag">${Math.round(ev.confidence * 100)}%</span>
+                    </div>
+                    <div class="time-tag"><i data-lucide="clock" style="width: 11px; height: 11px; display: inline;"></i> ${ev.time}</div>
+                </div>
+            `;
+            grid.insertBefore(newCard, grid.firstChild);
+            lucide.createIcons();
         }
 
         async function fetchEvents() {
@@ -984,8 +962,20 @@
                     grid.appendChild(card);
                 });
                 lucide.createIcons();
+                checkHighlightRedirect(events);
             } catch (err) {
                 console.error("Fetch events error:", err);
+            }
+        }
+
+        function checkHighlightRedirect(events) {
+            const params = new URLSearchParams(window.location.search);
+            const targetId = params.get('highlight_event');
+            if (targetId) {
+                const ev = events.find(e => e.id == targetId);
+                if (ev) {
+                    openImageModal('/screenshots/' + ev.screenshot_filename, ev);
+                }
             }
         }
 
@@ -994,7 +984,6 @@
             try {
                 await fetch('/api/events', { method: 'DELETE' });
                 fetchEvents();
-                updateStatus();
             } catch (err) {
                 console.error("Clear events error:", err);
             }
@@ -1012,10 +1001,10 @@
 
         function openImageModal(imgSrc, ev) {
             document.getElementById('modalImg').src = imgSrc;
-            document.getElementById('modalTitle').innerText = `Track #${ev.track_id} - ${ev.object_class.toUpperCase()}`;
+            document.getElementById('modalTitle').innerText = `Track #${ev.track_id} - ${(ev.object_class || 'person').toUpperCase()}`;
             document.getElementById('modalDetails').innerHTML = `
-                <p><strong>Camera:</strong> ${ev.camera_name}</p>
-                <p><strong>Timestamp:</strong> ${ev.datetime_str}</p>
+                <p><strong>Camera:</strong> ${ev.camera_name || 'Entrance Camera'}</p>
+                <p><strong>Timestamp:</strong> ${ev.datetime_str || ev.time}</p>
                 <p><strong>Confidence:</strong> ${Math.round(ev.confidence * 100)}%</p>
             `;
             document.getElementById('imageModal').classList.add('active');
@@ -1043,10 +1032,8 @@
             alert("Settings saved successfully!");
         }
 
-        // Poll status every 2 seconds
-        setInterval(updateStatus, 2000);
-        setInterval(fetchEvents, 5000);
-        updateStatus();
+        // Initialize WebSockets and load data
+        initWebSocket();
         fetchEvents();
     </script>
 </body>

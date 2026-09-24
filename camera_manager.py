@@ -6,6 +6,7 @@ from typing import Optional, Dict, Any, List
 from ultralytics import YOLO
 from database import add_event, get_setting, save_setting
 from discord_notifier import send_discord_notification
+from websocket_manager import ws_manager
 
 class CameraManager:
     """
@@ -114,6 +115,7 @@ class CameraManager:
                 self.current_fps = frame_count / (now - start_time)
                 frame_count = 0
                 start_time = now
+                ws_manager.sync_broadcast({"type": "STATUS_UPDATE", "status": self.get_status()})
 
             # Perform Object Detection + Tracking
             persons_count = 0
@@ -207,6 +209,9 @@ class CameraManager:
         }
         self.latest_event_info = event_info
         self.last_event_time = event_info["time"]
+
+        # Broadcast real-time event via WebSockets
+        ws_manager.sync_broadcast({"type": "NEW_EVENT", "event": event_info})
 
         # Send notification via Discord
         webhook_url = get_setting("DISCORD_WEBHOOK_URL", os.getenv("DISCORD_WEBHOOK_URL", ""))

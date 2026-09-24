@@ -1,8 +1,9 @@
 import os
 import time
+import asyncio
 from typing import Optional, Dict, Any
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
+from fastapi import FastAPI, Request, HTTPException, WebSocket, WebSocketDisconnect, status
+from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -11,6 +12,7 @@ from dotenv import load_dotenv
 from database import init_db, get_events, delete_event, clear_all_events, get_stats, get_setting, save_setting
 from camera_manager import camera_manager
 from discord_notifier import send_discord_notification
+from websocket_manager import ws_manager
 
 # Load environment variables
 load_dotenv()
@@ -18,8 +20,8 @@ load_dotenv()
 # Initialize FastAPI App
 app = FastAPI(
     title="AI CCTV Monitoring Sentinel System",
-    description="Real-Time CCTV Person Detection, Tracking, SQLite Storage & Discord Alerts",
-    version="2.0.0"
+    description="Real-Time CCTV Person Detection, Tracking, WebSockets, Redirects & Discord Alerts",
+    version="2.1.0"
 )
 
 # Initialize Database
@@ -54,10 +56,60 @@ async def dashboard(request: Request):
 
 
 # ============================================================
-# 2. MJPEG LIVE STREAMING ENDPOINT
+# 2. WEBSOCKET REAL-TIME PUSH ENDPOINT
+# ============================================================
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """
+    Bi-directional WebSocket connection for instant push updates:
+    - Real-time detection alerts & event image prepending
+    - Live system status, FPS & person counts without HTTP polling delay
+    """
+    ws_manager.set_loop(asyncio.get_running_loop())
+    await ws_manager.connect(websocket)
+    try:
+        # Initial status push on connect
+        status_data = camera_manager.get_status()
+        status_data["stats"] = get_stats()
+        await websocket.send_json({"type": "STATUS_UPDATE", "status": status_data})
+
+        while True:
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket)
+    except Exception as e:
+        print(f"WebSocket client error: {e}")
+        ws_manager.disconnect(websocket)
+
+
+# ============================================================
+# 3. REDIRECT ROUTES
+# ============================================================
+@app.get("/redirect/event/{event_id}")
+async def redirect_to_event(event_id: int):
+    """Redirects client directly to dashboard with target event highlighted."""
+    return RedirectResponse(url=f"/?highlight_event={event_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.get("/redirect/start")
+async def redirect_start_camera():
+    """Starts camera and redirects back to dashboard home."""
+    camera_manager.start()
+    return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.get("/redirect/stop")
+async def redirect_stop_camera():
+    """Stops camera and redirects back to dashboard home."""
+    camera_manager.stop()
+    return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+
+
+# ============================================================
+# 4. MJPEG LIVE STREAMING ENDPOINT
 # ============================================================
 def generate_mjpeg_frames():
-    """Generator function that yields JPEG frames for MJPEG HTTP streaming."""
+    """Generator function yielding JPEG frames for MJPEG HTTP streaming."""
     while True:
         frame_bytes = camera_manager.get_frame_bytes()
         if frame_bytes is not None:
@@ -69,9 +121,8 @@ def generate_mjpeg_frames():
 
 @app.get("/video_feed")
 async def video_feed():
-    """Provides a continuous MJPEG multipart stream for live viewing in <img> tags."""
+    """Provides continuous MJPEG stream for live video viewing."""
     if not camera_manager.is_running:
-        # Start default camera source if not already running
         camera_manager.start()
         
     return StreamingResponse(
@@ -81,7 +132,7 @@ async def video_feed():
 
 
 # ============================================================
-# 3. CAMERA CONTROL APIs
+# 5. CAMERA CONTROL APIs
 # ============================================================
 @app.post("/api/start-camera")
 async def start_camera(req: StartCameraRequest):
@@ -105,18 +156,18 @@ async def stop_camera():
 
 
 # ============================================================
-# 4. SYSTEM STATUS & METRICS API
+# 6. SYSTEM STATUS & METRICS API
 # ============================================================
 @app.get("/api/status")
 async def get_system_status():
-    status = camera_manager.get_status()
+    status_data = camera_manager.get_status()
     db_stats = get_stats()
-    status["stats"] = db_stats
-    return JSONResponse(status)
+    status_data["stats"] = db_stats
+    return JSONResponse(status_data)
 
 
 # ============================================================
-# 5. DETECTION EVENTS APIs
+# 7. DETECTION EVENTS APIs
 # ============================================================
 @app.get("/api/events")
 async def list_events(limit: int = 50, offset: int = 0):
@@ -137,7 +188,7 @@ async def clear_events():
 
 
 # ============================================================
-# 6. SETTINGS & DISCORD TEST APIs
+# 8. SETTINGS & DISCORD TEST APIs
 # ============================================================
 @app.post("/api/settings")
 async def save_system_settings(req: SettingsRequest):
@@ -153,7 +204,6 @@ async def test_discord_notification():
     if not webhook_url:
         return {"status": "error", "message": "Discord Webhook URL is not configured in settings or .env!"}
 
-    # Find a sample screenshot if available
     screenshots = [f for f in os.listdir(SCREENSHOT_DIR) if f.endswith(".jpg")]
     if screenshots:
         sample_path = os.path.join(SCREENSHOT_DIR, screenshots[0])
