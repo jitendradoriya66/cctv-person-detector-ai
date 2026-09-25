@@ -1,11 +1,13 @@
 import os
 import time
 import asyncio
+import logging
 from typing import Optional, Dict, Any
 from fastapi import FastAPI, Request, HTTPException, WebSocket, WebSocketDisconnect, status, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
@@ -13,6 +15,15 @@ from database import init_db, get_events, delete_event, clear_all_events, get_st
 from camera_manager import camera_manager
 from discord_notifier import send_discord_notification
 from websocket_manager import ws_manager
+
+# Configure Main Application Logger
+logger = logging.getLogger("cctv_ai.main")
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter("[%(asctime)s] [%(levelname)s] [%(name)s]: %(message)s")
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
 
 # Load environment variables
 load_dotenv()
@@ -24,9 +35,6 @@ app = FastAPI(
     version="2.1.0"
 )
 
-# Initialize Database
-init_db()
-
 # Mount Screenshots Static Directory
 SCREENSHOT_DIR = "screenshots"
 os.makedirs(SCREENSHOT_DIR, exist_ok=True)
@@ -34,6 +42,16 @@ app.mount("/screenshots", StaticFiles(directory=SCREENSHOT_DIR), name="screensho
 
 # Setup Jinja2 Templates
 templates = Jinja2Templates(directory="templates")
+
+# FastAPI Application Lifecycle
+@app.on_event("startup")
+async def startup_event():
+    """Initializes database and pre-warms YOLO model safely on application launch."""
+    logger.info("Starting AI CCTV Monitoring Sentinel System...")
+    init_db()
+    # Pre-warm YOLO model in worker thread
+    await run_in_threadpool(camera_manager.get_model)
+    logger.info("System startup complete and ready for streaming.")
 
 
 # Request Pydantic Schemas
@@ -80,7 +98,7 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket)
     except Exception as e:
-        print(f"WebSocket client error: {e}")
+        logger.warning(f"WebSocket client disconnected with error: {e}")
         ws_manager.disconnect(websocket)
 
 
@@ -110,7 +128,24 @@ async def redirect_stop_camera():
 # ============================================================
 def generate_mjpeg_frames():
     """Generator function yielding JPEG frames for MJPEG HTTP streaming."""
+    consecutive_stopped = 0
     while True:
+        status_info = camera_manager.get_status()
+        if not status_info["is_running"] and status_info["stream_status"] in ["STOPPED", "FAILED"]:
+            consecutive_stopped += 1
+            frame_bytes = camera_manager.get_frame_bytes()
+            if frame_bytes is not None:
+                yield (
+                    b'--frame\r\n'
+                    b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n'
+                )
+            # Break stream response after holding placeholder for ~3 seconds
+            if consecutive_stopped > 30:
+                break
+            time.sleep(0.1)
+            continue
+
+        consecutive_stopped = 0
         frame_bytes = camera_manager.get_frame_bytes()
         if frame_bytes is not None:
             yield (
@@ -122,9 +157,10 @@ def generate_mjpeg_frames():
 @app.get("/video_feed")
 async def video_feed():
     """Provides continuous MJPEG stream for live video viewing."""
-    if not camera_manager.is_running:
+    status_info = camera_manager.get_status()
+    if not status_info["is_running"] and status_info["stream_status"] not in ["STARTING", "RUNNING"]:
         camera_manager.start()
-        
+
     return StreamingResponse(
         generate_mjpeg_frames(),
         media_type="multipart/x-mixed-replace; boundary=frame"
@@ -144,7 +180,9 @@ async def start_camera(req: StartCameraRequest):
     if success:
         return {"status": "success", "message": f"Camera started on source: {req.source}"}
     else:
-        raise HTTPException(status_code=500, detail="Failed to start camera stream.")
+        status_info = camera_manager.get_status()
+        err_detail = status_info.get("stream_error") or "Failed to start camera stream."
+        raise HTTPException(status_code=500, detail=err_detail)
 
 @app.post("/api/stop-camera")
 async def stop_camera():
@@ -160,9 +198,17 @@ async def process_browser_frame(
     confidence: float = Form(0.5),
     camera_name: str = Form("Smartphone Camera")
 ):
-    """API Endpoint receiving frame uploads from Mobile HTML5 browser camera."""
+    """API Endpoint receiving frame uploads from Mobile HTML5 browser camera. Synchronously offloaded to threadpool."""
     contents = await file.read()
-    result = camera_manager.process_single_frame(contents, confidence=confidence, camera_name=camera_name)
+    if not contents or len(contents) == 0:
+        raise HTTPException(status_code=400, detail="Empty frame uploaded.")
+
+    result = await run_in_threadpool(
+        camera_manager.process_single_frame,
+        contents,
+        confidence=confidence,
+        camera_name=camera_name
+    )
     return JSONResponse(result)
 
 

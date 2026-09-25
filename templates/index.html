@@ -649,8 +649,9 @@
             <div class="stat-card">
                 <div class="stat-icon"><i data-lucide="users" style="width: 20px; height: 20px;"></i></div>
                 <div class="stat-info">
-                    <div class="stat-label">Persons Detected</div>
-                    <div id="statPersonsCount" class="stat-value">0</div>
+                    <div class="stat-label">Active In-Frame</div>
+                    <div id="statActivePersons" class="stat-value">0</div>
+                    <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Total DB Events: <span id="statPersonsCount">0</span></div>
                 </div>
             </div>
 
@@ -878,14 +879,19 @@
             };
         }
 
+        let isMobileProcessing = false;
+
         function handleStatusUpdate(data) {
             if (mobileStream) return; // Keep mobile cam live
 
             document.getElementById('statFps').innerText = data.fps + ' FPS';
-            document.getElementById('statPersonsCount').innerText = data.stats ? data.stats.persons_count : 0;
+            const activeCount = data.active_persons || 0;
+            const dbCount = data.stats ? (data.stats.persons_count || data.stats.total_events || 0) : 0;
+            document.getElementById('statActivePersons').innerText = activeCount;
+            document.getElementById('statPersonsCount').innerText = dbCount;
             document.getElementById('statLastTime').innerText = data.last_event_time ? data.last_event_time.split(' ')[1] : '--:--:--';
             document.getElementById('statCameraName').innerText = data.camera_name;
-            document.getElementById('inFrameBadge').innerText = data.active_persons + ' in frame';
+            document.getElementById('inFrameBadge').innerText = activeCount + ' in frame';
 
             if (data.is_running && !isStreaming) {
                 document.getElementById('startBtn').style.display = 'none';
@@ -900,7 +906,7 @@
                 document.getElementById('startBtn').style.display = 'inline-flex';
                 document.getElementById('stopBtn').style.display = 'none';
                 document.getElementById('statusBadge').className = 'status-badge offline';
-                document.getElementById('statusText').innerText = 'System Offline';
+                document.getElementById('statusText').innerText = data.stream_status === 'FAILED' ? 'Stream Error' : 'System Offline';
                 document.getElementById('videoFeed').style.display = 'none';
                 document.getElementById('streamPlaceholder').style.display = 'flex';
                 isStreaming = false;
@@ -963,44 +969,78 @@
                 document.getElementById('statusText').innerText = 'Mobile Cam Live';
                 document.getElementById('statCameraName').innerText = 'Smartphone Camera';
 
-                const canvas = document.getElementById('mobileCamCanvas');
-                const ctx = canvas.getContext('2d');
-
-                mobileInterval = setInterval(() => {
-                    if (!isStreaming || !mobileStream) return;
-                    canvas.width = videoEl.videoWidth || 640;
-                    canvas.height = videoEl.videoHeight || 480;
-                    ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
-
-                    canvas.toBlob(blob => {
-                        if (!blob) return;
-                        const formData = new FormData();
-                        formData.append('file', blob, 'frame.jpg');
-                        formData.append('confidence', parseFloat(document.getElementById('confidenceRange').value));
-                        formData.append('camera_name', 'Smartphone Browser Cam');
-
-                        fetch('/api/process-frame', { method: 'POST', body: formData })
-                            .then(res => res.json())
-                            .then(data => {
-                                if (data.status === 'success' && data.annotated_image) {
-                                    document.getElementById('videoFeed').src = data.annotated_image;
-                                    document.getElementById('inFrameBadge').innerText = data.persons_count + ' in frame';
-                                }
-                            })
-                            .catch(err => console.error("Frame upload error:", err));
-                    }, 'image/jpeg', 0.7);
-                }, 120);
+                runMobileFrameLoop();
             } catch(err) {
                 alert("Mobile Camera Permission Error: " + err.message);
                 console.error("Mobile camera error:", err);
             }
         }
 
-        function stopMobileBrowserCamera() {
-            if (mobileInterval) {
-                clearInterval(mobileInterval);
-                mobileInterval = null;
+        async function runMobileFrameLoop() {
+            if (isMobileProcessing) return;
+            isMobileProcessing = true;
+
+            const videoEl = document.getElementById('mobileCamVideo');
+            const canvas = document.getElementById('mobileCamCanvas');
+            const ctx = canvas.getContext('2d');
+
+            while (isStreaming && mobileStream) {
+                try {
+                    if (videoEl.readyState < 2 || videoEl.paused || videoEl.ended) {
+                        await new Promise(r => setTimeout(r, 100));
+                        continue;
+                    }
+
+                    canvas.width = videoEl.videoWidth || 640;
+                    canvas.height = videoEl.videoHeight || 480;
+                    ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+
+                    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.75));
+                    if (!blob || !isStreaming || !mobileStream) break;
+
+                    const formData = new FormData();
+                    formData.append('file', blob, 'frame.jpg');
+                    formData.append('confidence', parseFloat(document.getElementById('confidenceRange').value));
+                    formData.append('camera_name', 'Smartphone Browser Cam');
+
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+                    const res = await fetch('/api/process-frame', {
+                        method: 'POST',
+                        body: formData,
+                        signal: controller.signal
+                    });
+                    clearTimeout(timeoutId);
+
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.status === 'success' && data.annotated_image) {
+                            document.getElementById('videoFeed').src = data.annotated_image;
+                            const activeInFrame = data.persons_count || 0;
+                            document.getElementById('inFrameBadge').innerText = activeInFrame + ' in frame';
+                            document.getElementById('statActivePersons').innerText = activeInFrame;
+                        }
+                    }
+                } catch (err) {
+                    if (err.name === 'AbortError') {
+                        console.warn("Mobile frame request timed out.");
+                    } else {
+                        console.error("Mobile frame loop error:", err);
+                    }
+                    await new Promise(r => setTimeout(r, 400));
+                }
+
+                // Sequential delay before capturing next frame
+                await new Promise(r => setTimeout(r, 60));
             }
+
+            isMobileProcessing = false;
+        }
+
+        function stopMobileBrowserCamera() {
+            isStreaming = false;
+            isMobileProcessing = false;
             if (mobileStream) {
                 mobileStream.getTracks().forEach(track => track.stop());
                 mobileStream = null;
