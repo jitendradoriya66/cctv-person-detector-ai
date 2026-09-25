@@ -1003,8 +1003,13 @@
         async function startMobileBrowserCamera() {
             try {
                 const videoEl = document.getElementById('mobileCamVideo');
-                const constraints = { video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } } };
-                mobileStream = await navigator.mediaDevices.getUserMedia(constraints);
+                let constraints = { video: { width: { ideal: 640 }, height: { ideal: 480 } } };
+                try {
+                    mobileStream = await navigator.mediaDevices.getUserMedia(constraints);
+                } catch(e) {
+                    logger.warn("Ideal video constraints failed, trying basic video constraint:", e);
+                    mobileStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                }
                 videoEl.srcObject = mobileStream;
                 await videoEl.play();
 
@@ -1015,12 +1020,12 @@
                 document.getElementById('stopBtn').style.display = 'inline-flex';
                 document.getElementById('statusBadge').className = 'status-badge';
                 document.getElementById('statusText').innerText = 'Mobile Cam Live';
-                document.getElementById('statCameraName').innerText = 'Smartphone Camera';
+                document.getElementById('statCameraName').innerText = 'Browser Camera';
 
                 runMobileFrameLoop();
             } catch(err) {
-                alert("Mobile Camera Permission Error: " + err.message);
-                console.error("Mobile camera error:", err);
+                alert("Browser Camera Permission Error: " + err.message);
+                console.error("Browser camera error:", err);
             }
         }
 
