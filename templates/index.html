@@ -596,6 +596,10 @@
 </head>
 <body>
 
+    <!-- Hidden HTML5 mobile video element for Option 6 -->
+    <video id="mobileCamVideo" playsinline style="display:none;"></video>
+    <canvas id="mobileCamCanvas" style="display:none;"></canvas>
+
     <!-- Header -->
     <header>
         <div class="logo-container">
@@ -697,7 +701,8 @@
                             <option value="1">Option 2: Secondary USB Camera (1)</option>
                             <option value="demo1">Option 3: Demo CCTV Stream 1 (Pedestrians)</option>
                             <option value="demo2">Option 4: Demo CCTV Stream 2 (People)</option>
-                            <option value="rtsp">Option 5: Custom RTSP / Video Stream URL</option>
+                            <option value="mobile">Option 5: Smartphone Camera (Browser Cam)</option>
+                            <option value="rtsp">Option 6: Custom RTSP / Video Stream URL</option>
                         </select>
                     </div>
 
@@ -818,6 +823,10 @@
         let ws = null;
         let isStreaming = false;
 
+        // Mobile Camera HTML5 Stream Variables
+        let mobileStream = null;
+        let mobileInterval = null;
+
         // Audio Alert Synthesizer
         function playAlertBeep() {
             try {
@@ -870,6 +879,8 @@
         }
 
         function handleStatusUpdate(data) {
+            if (mobileStream) return; // Keep mobile cam live
+
             document.getElementById('statFps').innerText = data.fps + ' FPS';
             document.getElementById('statPersonsCount').innerText = data.stats ? data.stats.persons_count : 0;
             document.getElementById('statLastTime').innerText = data.last_event_time ? data.last_event_time.split(' ')[1] : '--:--:--';
@@ -885,7 +896,7 @@
                 document.getElementById('videoFeed').style.display = 'block';
                 document.getElementById('streamPlaceholder').style.display = 'none';
                 isStreaming = true;
-            } else if (!data.is_running && isStreaming) {
+            } else if (!data.is_running && isStreaming && !mobileStream) {
                 document.getElementById('startBtn').style.display = 'inline-flex';
                 document.getElementById('stopBtn').style.display = 'none';
                 document.getElementById('statusBadge').className = 'status-badge offline';
@@ -935,8 +946,79 @@
             lucide.createIcons();
         }
 
+        async function startMobileBrowserCamera() {
+            try {
+                const videoEl = document.getElementById('mobileCamVideo');
+                const constraints = { video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } } };
+                mobileStream = await navigator.mediaDevices.getUserMedia(constraints);
+                videoEl.srcObject = mobileStream;
+                await videoEl.play();
+
+                isStreaming = true;
+                document.getElementById('videoFeed').style.display = 'block';
+                document.getElementById('streamPlaceholder').style.display = 'none';
+                document.getElementById('startBtn').style.display = 'none';
+                document.getElementById('stopBtn').style.display = 'inline-flex';
+                document.getElementById('statusBadge').className = 'status-badge';
+                document.getElementById('statusText').innerText = 'Mobile Cam Live';
+                document.getElementById('statCameraName').innerText = 'Smartphone Camera';
+
+                const canvas = document.getElementById('mobileCamCanvas');
+                const ctx = canvas.getContext('2d');
+
+                mobileInterval = setInterval(() => {
+                    if (!isStreaming || !mobileStream) return;
+                    canvas.width = videoEl.videoWidth || 640;
+                    canvas.height = videoEl.videoHeight || 480;
+                    ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+
+                    canvas.toBlob(blob => {
+                        if (!blob) return;
+                        const formData = new FormData();
+                        formData.append('file', blob, 'frame.jpg');
+                        formData.append('confidence', parseFloat(document.getElementById('confidenceRange').value));
+                        formData.append('camera_name', 'Smartphone Browser Cam');
+
+                        fetch('/api/process-frame', { method: 'POST', body: formData })
+                            .then(res => res.json())
+                            .then(data => {
+                                if (data.status === 'success' && data.annotated_image) {
+                                    document.getElementById('videoFeed').src = data.annotated_image;
+                                    document.getElementById('inFrameBadge').innerText = data.persons_count + ' in frame';
+                                }
+                            })
+                            .catch(err => console.error("Frame upload error:", err));
+                    }, 'image/jpeg', 0.7);
+                }, 120);
+            } catch(err) {
+                alert("Mobile Camera Permission Error: " + err.message);
+                console.error("Mobile camera error:", err);
+            }
+        }
+
+        function stopMobileBrowserCamera() {
+            if (mobileInterval) {
+                clearInterval(mobileInterval);
+                mobileInterval = null;
+            }
+            if (mobileStream) {
+                mobileStream.getTracks().forEach(track => track.stop());
+                mobileStream = null;
+            }
+        }
+
         async function startCamera() {
             let sourceVal = document.getElementById('cameraSourceSelect').value;
+
+            // Handle Option 5: Smartphone Camera directly in HTML5 browser
+            if (sourceVal === 'mobile') {
+                await fetch('/api/stop-camera', { method: 'POST' });
+                startMobileBrowserCamera();
+                return;
+            } else {
+                stopMobileBrowserCamera();
+            }
+
             let source = sourceVal;
             if (sourceVal === 'rtsp') {
                 source = document.getElementById('customSourceInput').value.trim();
@@ -975,6 +1057,7 @@
         }
 
         async function stopCamera() {
+            stopMobileBrowserCamera();
             try {
                 await fetch('/api/stop-camera', { method: 'POST' });
                 isStreaming = false;

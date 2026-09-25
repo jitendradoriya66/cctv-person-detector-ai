@@ -232,6 +232,64 @@ class CameraManager:
             webhook_url=webhook_url
         )
 
+    def process_single_frame(self, image_bytes: bytes, confidence: float = 0.5, camera_name: str = "Mobile Camera") -> Dict[str, Any]:
+        """Processes a single frame uploaded directly from HTML5 Mobile/Web Browser Camera."""
+        import numpy as np
+        import base64
+
+        nparr = np.frombuffer(image_bytes, np.uint8)
+        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        if frame is None:
+            return {"error": "Invalid frame image data"}
+
+        persons_count = 0
+        annotated_frame = frame
+        if self.model is not None:
+            try:
+                results = self.model.track(
+                    frame,
+                    persist=True,
+                    conf=confidence,
+                    verbose=False
+                )
+                result = results[0]
+                boxes = result.boxes
+
+                if boxes is not None and boxes.id is not None:
+                    track_ids = boxes.id.int().cpu().tolist()
+
+                    for box, track_id in zip(boxes, track_ids):
+                        class_id = int(box.cls[0])
+                        conf_score = float(box.conf[0])
+
+                        if class_id in self.target_class_ids:
+                            persons_count += 1
+
+                            if track_id not in self.alerted_ids:
+                                self.alerted_ids.add(track_id)
+                                self.total_session_events += 1
+                                threading.Thread(
+                                    target=self._handle_detection_event,
+                                    args=(frame.copy(), track_id, "person", conf_score),
+                                    daemon=True
+                                ).start()
+
+                annotated_frame = result.plot()
+            except Exception as e:
+                print(f"Frame process error: {e}")
+
+        # Encode annotated frame back to base64 JPEG data URL
+        ret, buffer = cv2.imencode('.jpg', annotated_frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
+        if not ret:
+            return {"error": "Encoding failed"}
+
+        encoded_str = base64.b64encode(buffer.tobytes()).decode('utf-8')
+        return {
+            "status": "success",
+            "annotated_image": f"data:image/jpeg;base64,{encoded_str}",
+            "persons_count": persons_count
+        }
+
     def get_frame_bytes(self) -> Optional[bytes]:
         with self.frame_lock:
             return self.current_frame_bytes

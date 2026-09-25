@@ -2,7 +2,7 @@ import os
 import time
 import asyncio
 from typing import Optional, Dict, Any
-from fastapi import FastAPI, Request, HTTPException, WebSocket, WebSocketDisconnect, status
+from fastapi import FastAPI, Request, HTTPException, WebSocket, WebSocketDisconnect, status, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -153,6 +153,17 @@ async def stop_camera():
         return {"status": "success", "message": "Camera stopped successfully."}
     else:
         raise HTTPException(status_code=500, detail="Failed to stop camera stream.")
+
+@app.post("/api/process-frame")
+async def process_browser_frame(
+    file: UploadFile = File(...),
+    confidence: float = Form(0.5),
+    camera_name: str = Form("Smartphone Camera")
+):
+    """API Endpoint receiving frame uploads from Mobile HTML5 browser camera."""
+    contents = await file.read()
+    result = camera_manager.process_single_frame(contents, confidence=confidence, camera_name=camera_name)
+    return JSONResponse(result)
 
 
 # ============================================================
