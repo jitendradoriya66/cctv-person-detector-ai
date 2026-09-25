@@ -1,4 +1,5 @@
 import os
+os.environ["OPENCV_LOG_LEVEL"] = "OFF"
 import cv2
 import time
 import threading
@@ -94,9 +95,20 @@ class CameraManager:
         return True
 
     def _process_stream(self):
-        cap = cv2.VideoCapture(self.camera_source)
+        source_target = self.camera_source
+
+        # If on Linux cloud server (Render) without physical webcam /dev/video0, use demo stream directly
+        if os.name != 'nt':
+            if isinstance(source_target, int) or (isinstance(source_target, str) and str(source_target).isdigit()):
+                dev_path = f"/dev/video{source_target}"
+                if not os.path.exists(dev_path):
+                    print(f"ℹ️ Cloud environment without '{dev_path}'. Streaming online CCTV demo video...")
+                    source_target = "https://raw.githubusercontent.com/intel-iot-devkit/sample-videos/master/people-detection.mp4"
+                    self.camera_name = "Demo CCTV Stream"
+
+        cap = cv2.VideoCapture(source_target)
         if not cap.isOpened():
-            print(f"⚠️ Video source '{self.camera_source}' unavailable (no physical webcam detected). Attempting online CCTV demo video stream fallback...")
+            print(f"⚠️ Video source '{source_target}' unavailable. Attempting online CCTV demo stream fallback...")
             fallback_url = "https://raw.githubusercontent.com/intel-iot-devkit/sample-videos/master/people-detection.mp4"
             cap = cv2.VideoCapture(fallback_url)
             if not cap.isOpened():
