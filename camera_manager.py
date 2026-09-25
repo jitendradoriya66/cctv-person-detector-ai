@@ -53,13 +53,19 @@ class CameraManager:
             print(f"❌ Failed to load YOLO model: {e}")
 
     def start(self, source: Any = None, confidence: float = None, camera_name: str = None) -> bool:
+        # If camera is running and new settings are provided, stop current stream first
         if self.is_running:
-            print("⚠️ Camera is already running.")
-            return True
+            print("🔄 Dynamic camera source or confidence update requested. Restarting stream...")
+            self.stop()
 
         if source is not None:
-            # Check if source is a digit string (e.g. "0")
-            if isinstance(source, str) and source.isdigit():
+            if source == "demo1":
+                self.camera_source = "https://raw.githubusercontent.com/intel-iot-devkit/sample-videos/master/people-detection.mp4"
+                self.camera_name = "Demo CCTV Stream 1"
+            elif source == "demo2":
+                self.camera_source = "https://raw.githubusercontent.com/intel-iot-devkit/sample-videos/master/head-pose-face-detection-female.mp4"
+                self.camera_name = "Demo CCTV Stream 2"
+            elif isinstance(source, str) and source.isdigit():
                 self.camera_source = int(source)
             else:
                 self.camera_source = source

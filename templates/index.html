@@ -619,12 +619,12 @@
                 <span id="statusText">System Offline</span>
             </div>
 
-            <a href="/redirect/start" class="btn btn-primary" id="startBtn">
+            <button class="btn btn-primary" id="startBtn" onclick="startCamera()">
                 <i data-lucide="play" style="width: 14px; height: 14px;"></i> Start Stream
-            </a>
-            <a href="/redirect/stop" class="btn btn-danger" id="stopBtn" style="display: none;">
+            </button>
+            <button class="btn btn-danger" id="stopBtn" onclick="stopCamera()" style="display: none;">
                 <i data-lucide="square" style="width: 14px; height: 14px;"></i> Stop Stream
-            </a>
+            </button>
             <button class="btn btn-secondary" onclick="openSettingsModal()">
                 <i data-lucide="settings" style="width: 14px; height: 14px;"></i> Settings
             </button>
@@ -691,16 +691,18 @@
                 <!-- Controls bar -->
                 <div class="stream-controls-bar">
                     <div class="form-group" style="flex: 1;">
-                        <span class="form-label">Source:</span>
-                        <select id="cameraSourceSelect" class="form-select">
-                            <option value="0">Webcam / Integrated Camera (0)</option>
-                            <option value="1">Secondary USB Camera (1)</option>
-                            <option value="rtsp">Custom RTSP / Video Path</option>
+                        <span class="form-label">Source Option:</span>
+                        <select id="cameraSourceSelect" class="form-select" onchange="handleSourceSelectChange()">
+                            <option value="0">Option 1: WebCam 0 / Auto Cloud Demo</option>
+                            <option value="1">Option 2: Secondary USB Camera (1)</option>
+                            <option value="demo1">Option 3: Demo CCTV Stream 1 (Pedestrians)</option>
+                            <option value="demo2">Option 4: Demo CCTV Stream 2 (People)</option>
+                            <option value="rtsp">Option 5: Custom RTSP / Video Stream URL</option>
                         </select>
                     </div>
 
                     <div class="form-group" id="customSourceInputGroup" style="display: none; width: 100%;">
-                        <input type="text" id="customSourceInput" class="form-input" placeholder="rtsp://admin:pass@192.168.1.100/stream">
+                        <input type="text" id="customSourceInput" class="form-input" placeholder="rtsp://admin:pass@192.168.1.100/stream" onchange="if(isStreaming) startCamera();">
                     </div>
 
                     <div class="form-group" style="flex: 1;">
@@ -933,6 +935,81 @@
             lucide.createIcons();
         }
 
+        async function startCamera() {
+            let sourceVal = document.getElementById('cameraSourceSelect').value;
+            let source = sourceVal;
+            if (sourceVal === 'rtsp') {
+                source = document.getElementById('customSourceInput').value.trim();
+                if (!source) {
+                    alert("Please enter a valid RTSP Stream URL or Video Path!");
+                    return;
+                }
+            }
+
+            const confidence = parseFloat(document.getElementById('confidenceRange').value);
+            const cameraName = document.getElementById('settingCameraName').value || "Entrance Camera";
+
+            try {
+                const res = await fetch('/api/start-camera', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ source: source, confidence: confidence, camera_name: cameraName })
+                });
+                const data = await res.json();
+                
+                if (data.status === 'success') {
+                    isStreaming = true;
+                    document.getElementById('videoFeed').src = '/video_feed?' + new Date().getTime();
+                    document.getElementById('videoFeed').style.display = 'block';
+                    document.getElementById('streamPlaceholder').style.display = 'none';
+                    
+                    document.getElementById('startBtn').style.display = 'none';
+                    document.getElementById('stopBtn').style.display = 'inline-flex';
+                    
+                    document.getElementById('statusBadge').className = 'status-badge';
+                    document.getElementById('statusText').innerText = 'System Live';
+                }
+            } catch (err) {
+                console.error("Failed to start camera:", err);
+            }
+        }
+
+        async function stopCamera() {
+            try {
+                await fetch('/api/stop-camera', { method: 'POST' });
+                isStreaming = false;
+                document.getElementById('videoFeed').src = '';
+                document.getElementById('videoFeed').style.display = 'none';
+                document.getElementById('streamPlaceholder').style.display = 'flex';
+
+                document.getElementById('startBtn').style.display = 'inline-flex';
+                document.getElementById('stopBtn').style.display = 'none';
+
+                document.getElementById('statusBadge').className = 'status-badge offline';
+                document.getElementById('statusText').innerText = 'System Offline';
+            } catch (err) {
+                console.error("Failed to stop camera:", err);
+            }
+        }
+
+        function handleSourceSelectChange() {
+            const val = document.getElementById('cameraSourceSelect').value;
+            const customGroup = document.getElementById('customSourceInputGroup');
+            if (val === 'rtsp') {
+                customGroup.style.display = 'flex';
+            } else {
+                customGroup.style.display = 'none';
+                startCamera();
+            }
+        }
+
+        function updateConfidenceLabel(val) {
+            document.getElementById('confidenceVal').innerText = Math.round(val * 100) + '%';
+            if (isStreaming) {
+                startCamera();
+            }
+        }
+
         async function fetchEvents() {
             try {
                 const res = await fetch('/api/events');
@@ -1030,6 +1107,9 @@
 
             closeModal('settingsModal');
             alert("Settings saved successfully!");
+            if (isStreaming) {
+                startCamera();
+            }
         }
 
         // Initialize WebSockets and load data
