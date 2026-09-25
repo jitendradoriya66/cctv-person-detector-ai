@@ -86,10 +86,13 @@ async def websocket_endpoint(websocket: WebSocket):
     ws_manager.set_loop(asyncio.get_running_loop())
     await ws_manager.connect(websocket)
     try:
-        # Initial status push on connect
-        status_data = camera_manager.get_status()
-        status_data["stats"] = get_stats()
-        await websocket.send_json({"type": "STATUS_UPDATE", "status": status_data})
+        # Initial status push on connect wrapped safely
+        try:
+            status_data = camera_manager.get_status()
+            status_data["stats"] = get_stats()
+            await websocket.send_json({"type": "STATUS_UPDATE", "status": status_data})
+        except Exception as push_err:
+            logger.warning(f"Initial WebSocket status push error: {push_err}")
 
         while True:
             data = await websocket.receive_text()

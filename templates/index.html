@@ -845,8 +845,24 @@
             } catch(e) {}
         }
 
-        // WebSockets Initialization
+        let pingInterval = null;
+
+        // WebSockets Initialization with auto-heartbeat & unbind cleanup
         function initWebSocket() {
+            if (ws) {
+                ws.onopen = null;
+                ws.onmessage = null;
+                ws.onclose = null;
+                ws.onerror = null;
+                try { ws.close(); } catch(e) {}
+                ws = null;
+            }
+
+            if (pingInterval) {
+                clearInterval(pingInterval);
+                pingInterval = null;
+            }
+
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${window.location.host}/ws`;
 
@@ -854,8 +870,17 @@
 
             ws.onopen = function() {
                 console.log("⚡ WebSocket Connected to Server");
-                document.getElementById('wsBadge').style.borderColor = 'rgba(16, 185, 129, 0.4)';
-                document.getElementById('wsText').innerText = '⚡ WebSocket Live';
+                const badge = document.getElementById('wsBadge');
+                if (badge) badge.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+                const txt = document.getElementById('wsText');
+                if (txt) txt.innerText = '⚡ WebSocket Live';
+
+                // Send heartbeat ping every 10 seconds to keep Render proxy connection alive
+                pingInterval = setInterval(() => {
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        try { ws.send("ping"); } catch(e) {}
+                    }
+                }, 10000);
             };
 
             ws.onmessage = function(evt) {
@@ -873,9 +898,19 @@
 
             ws.onclose = function() {
                 console.log("🔌 WebSocket Disconnected. Retrying in 3s...");
-                document.getElementById('wsBadge').style.borderColor = 'rgba(239, 68, 68, 0.4)';
-                document.getElementById('wsText').innerText = '⚡ WS Reconnecting...';
+                if (pingInterval) {
+                    clearInterval(pingInterval);
+                    pingInterval = null;
+                }
+                const badge = document.getElementById('wsBadge');
+                if (badge) badge.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+                const txt = document.getElementById('wsText');
+                if (txt) txt.innerText = '⚡ WS Reconnecting...';
                 setTimeout(initWebSocket, 3000);
+            };
+
+            ws.onerror = function(err) {
+                console.warn("WebSocket error:", err);
             };
         }
 
@@ -884,30 +919,43 @@
         function handleStatusUpdate(data) {
             if (mobileStream) return; // Keep mobile cam live
 
-            document.getElementById('statFps').innerText = data.fps + ' FPS';
+            document.getElementById('statFps').innerText = (data.fps || 0.0).toFixed(1) + ' FPS';
             const activeCount = data.active_persons || 0;
             const dbCount = data.stats ? (data.stats.persons_count || data.stats.total_events || 0) : 0;
             document.getElementById('statActivePersons').innerText = activeCount;
             document.getElementById('statPersonsCount').innerText = dbCount;
             document.getElementById('statLastTime').innerText = data.last_event_time ? data.last_event_time.split(' ')[1] : '--:--:--';
-            document.getElementById('statCameraName').innerText = data.camera_name;
+            document.getElementById('statCameraName').innerText = data.camera_name || 'Entrance Camera';
             document.getElementById('inFrameBadge').innerText = activeCount + ' in frame';
 
-            if (data.is_running && !isStreaming) {
+            const isStreamActive = data.is_running || data.stream_status === 'STARTING' || data.stream_status === 'RUNNING';
+
+            if (isStreamActive) {
                 document.getElementById('startBtn').style.display = 'none';
                 document.getElementById('stopBtn').style.display = 'inline-flex';
                 document.getElementById('statusBadge').className = 'status-badge';
-                document.getElementById('statusText').innerText = 'System Live';
-                document.getElementById('videoFeed').src = '/video_feed';
-                document.getElementById('videoFeed').style.display = 'block';
+                document.getElementById('statusText').innerText = data.stream_status === 'STARTING' ? 'Connecting...' : 'System Live';
+
+                const vFeed = document.getElementById('videoFeed');
+                if (vFeed) {
+                    if (!vFeed.src || vFeed.src.endsWith('/') || vFeed.style.display === 'none') {
+                        vFeed.src = '/video_feed?t=' + Date.now();
+                    }
+                    vFeed.style.display = 'block';
+                }
                 document.getElementById('streamPlaceholder').style.display = 'none';
                 isStreaming = true;
-            } else if (!data.is_running && isStreaming && !mobileStream) {
+            } else if (!isStreamActive && !mobileStream) {
                 document.getElementById('startBtn').style.display = 'inline-flex';
                 document.getElementById('stopBtn').style.display = 'none';
                 document.getElementById('statusBadge').className = 'status-badge offline';
                 document.getElementById('statusText').innerText = data.stream_status === 'FAILED' ? 'Stream Error' : 'System Offline';
-                document.getElementById('videoFeed').style.display = 'none';
+
+                const vFeed = document.getElementById('videoFeed');
+                if (vFeed) {
+                    vFeed.style.display = 'none';
+                    vFeed.src = '';
+                }
                 document.getElementById('streamPlaceholder').style.display = 'flex';
                 isStreaming = false;
             }
