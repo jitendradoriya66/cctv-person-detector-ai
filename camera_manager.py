@@ -27,6 +27,7 @@ class CameraManager:
         # Lock for thread-safe access to frame bytes
         self.frame_lock = threading.Lock()
         self.current_frame_bytes: Optional[bytes] = None
+        self._create_placeholder_frame("AI CCTV Camera Initializing...")
         
         # Configuration parameters
         self.camera_source: Any = 0
@@ -302,8 +303,19 @@ class CameraManager:
             "persons_count": persons_count
         }
 
-    def get_frame_bytes(self) -> Optional[bytes]:
+    def _create_placeholder_frame(self, text: str = "AI CCTV Camera Initializing..."):
+        import numpy as np
+        img = np.zeros((480, 640, 3), dtype=np.uint8)
+        img[:, :] = (25, 20, 15)
+        cv2.putText(img, text, (50, 240), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 160), 2, cv2.LINE_AA)
+        ret, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        if ret:
+            self.current_frame_bytes = buffer.tobytes()
+
+    def get_frame_bytes(self) -> bytes:
         with self.frame_lock:
+            if self.current_frame_bytes is None:
+                self._create_placeholder_frame("AI CCTV Camera Initializing...")
             return self.current_frame_bytes
 
     def get_status(self) -> Dict[str, Any]:
