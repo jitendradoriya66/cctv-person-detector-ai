@@ -3,62 +3,79 @@
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.108%2B-009688?style=for-the-badge&logo=fastapi&logoColor=white)
 ![YOLO](https://img.shields.io/badge/YOLO-Ultralytics-FF6F00?style=for-the-badge&logo=ultralytics&logoColor=white)
-![OpenCV](https://img.shields.io/badge/OpenCV-Computer_Vision-5C3EE8?style=for-the-badge&logo=opencv&logoColor=white)
+![OpenCV](https://img.shields.io/badge/OpenCV-Headless-5C3EE8?style=for-the-badge&logo=opencv&logoColor=white)
 ![WebSockets](https://img.shields.io/badge/WebSockets-Realtime_Push-430098?style=for-the-badge&logo=socketdotio&logoColor=white)
+![Mobile](https://img.shields.io/badge/Mobile-HTML5_Camera-10B981?style=for-the-badge&logo=android&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
 
-An intelligent, real-time computer vision security monitoring system built with **FastAPI**, **Ultralytics YOLO**, **OpenCV**, **WebSockets**, and **SQLite**. 
+An enterprise-grade, real-time computer vision security monitoring system built with **FastAPI**, **Ultralytics YOLO**, **OpenCV Headless**, **ByteTrack**, **WebSockets**, and **SQLite**. 
 
-Detects human presence, maintains tracking IDs across frames, captures high-resolution screenshot snapshots, logs event metadata into SQLite, dispatches instant rich **Discord Webhook alerts with attached screenshots**, and streams live video to a **responsive glassmorphism web dashboard**.
-
----
-
-## 🌟 Key Features
-
-- **🎥 Multi-Source Stream Input**: Seamlessly process local USB Webcams (`0`, `1`), custom **RTSP Stream URLs** (`rtsp://user:pass@ip:port/stream`), or pre-recorded video files.
-- **🧠 YOLO Detection & Identity Tracking**: Powered by Ultralytics YOLO (`yolo26n.pt` / `yolov8n.pt`) with persistent object tracking (`persist=True`). Prevents alert spam for the same target person.
-- **⚡ Bi-Directional WebSockets (`/ws`)**: Instant real-time push updates for new detection alerts and zero-polling FPS/performance metrics.
-- **🚨 Discord Webhook Notifications**: Rich formatted Discord embed alerts featuring Camera Name, Track ID, Confidence Rating, Timestamp, and direct image attachment uploads.
-- **💾 SQLite Persistent Event Database**: Automatically logs event metadata (`cctv_events.db`) and screenshot files into `/screenshots`. Includes auto-seeding logic.
-- **📱 Responsive Glassmorphism Web Dashboard**: Modern UI designed with HTML5, Vanilla CSS3, and Lucide icons. Fully optimized for both Desktop and Mobile viewports.
-- **🔄 FastAPI Navigation Redirects**: Direct HTTP 303 Redirect handlers (`/redirect/event/{id}`, `/redirect/start`, `/redirect/stop`) for seamless navigation and deep linking.
+Detects human presence, tracks target identities across video frames, generates high-resolution screenshot archives, logs detection metadata in SQLite, dispatches instant **Discord Webhook alerts with embedded image uploads**, and streams live video to a **mobile-responsive glassmorphism web dashboard**.
 
 ---
 
-## 🏛️ System Architecture
+## 🌟 Latest Code Updates & Feature Highlights
+
+### 📱 1. Direct HTML5 Smartphone Camera Capture
+- **Browser Camera Streaming**: Allows any smartphone (Android / iPhone) or laptop browser to stream its built-in camera directly to the AI backend via `navigator.mediaDevices.getUserMedia` and `POST /api/process-frame`.
+- **Live Bounding Box Overlay**: Renders real-time YOLO person detection bounding boxes, confidence ratings, and tracking IDs directly on your mobile screen.
+
+### ⚡ 2. Bi-Directional WebSockets (`/ws`)
+- **Instant Alert Push**: Detection events (`NEW_EVENT`) are pushed live over WebSockets to all connected browsers.
+- **Audio Alarm Chime**: Plays a synthesized Web Audio API alarm sound whenever a new person is detected.
+- **Dynamic Gallery Prepending**: Automatically prepends new screenshot cards to the top of the event history grid with glowing entry animations.
+- **Zero-Polling Performance**: FPS and in-frame person counts update in real-time without HTTP polling overhead.
+
+### 🎥 3. End-to-End Dynamic Stream Switching
+- **5 Flexible Source Options**:
+  1. **Option 1**: WebCam 0 / Auto Cloud Demo
+  2. **Option 2**: Secondary USB Camera (1)
+  3. **Option 3**: Demo CCTV Stream 1 (Pedestrian Traffic)
+  4. **Option 4**: Demo CCTV Stream 2 (People Detection)
+  5. **Option 5**: Smartphone Camera (Browser Cam)
+  6. **Option 6**: Custom RTSP / Video Stream URL
+- **Seamless Parameters**: Adjusting source dropdowns or confidence sliders instantly updates the stream engine via AJAX without full-page browser reloads.
+
+### 🛠️ 4. Robust Cloud Fallback & Zero 0-Byte Video Engine
+- **Smart Linux Device Inspection**: Mutes low-level OpenCV C++ warnings on cloud servers (Render) by checking `/dev/video0` availability before invocation.
+- **Instant Placeholder Generator**: Initializes stream byte buffers with dark slate placeholder frames (*"AI CCTV Stream Initializing..."*), ensuring `/video_feed` **never** yields 0 bytes or broken image icons.
+
+### 🔄 5. FastAPI Navigation Redirect Handlers
+- **`GET /redirect/event/{id}`**: Deep-link HTTP 303 Redirect handler opening the dashboard with the target event highlighted in the image viewer modal.
+- **`GET /redirect/start` & `GET /redirect/stop`**: Programmatic stream control routes.
+
+---
+
+## 🏛️ Architecture Blueprint
 
 ```mermaid
 flowchart TD
-    A["1. CCTV Camera\n(RTSP / Webcam / File)"] --> B["2. Frame Extraction\n(OpenCV Stream Engine)"]
-    B --> C["3. Object Detection\n(YOLOv8 / YOLO11)"]
-    C --> D["4. Tracking & Re-ID\n(ByteTrack / Track IDs)"]
-    D --> E["5. Screenshot & Discord Alerts\n(Webhook + Image Upload)"]
-    D --> F["6. SQLite Database\n(cctv_events.db & Files)"]
-    D --> G["7. WebSockets & FastAPI\n(Live MJPEG Stream & Web Dashboard)"]
+    A["1. Camera Input\n(Webcam / RTSP / Mobile Cam)"] --> B["2. Frame Engine\n(OpenCV & HTML5 API)"]
+    B --> C["3. YOLO Detection\n(Ultralytics YOLOv8 / YOLO11)"]
+    C --> D["4. ByteTrack Tracking\n(Identity Persistence)"]
+    D --> E["5. Discord Alerts\n(Webhook + Image Upload)"]
+    D --> F["6. SQLite Database\n(cctv_events.db & Screenshots)"]
+    D --> G["7. WebSockets & Dashboard\n(Live Stream & Web UI)"]
 ```
 
 ---
 
 ## 🛠️ Technology Stack
 
-| Domain | Technologies |
+| Component | Library / Tool |
 | :--- | :--- |
-| **Core Language** | Python 3.10+ |
-| **Computer Vision** | OpenCV (`opencv-python`) |
-| **Deep Learning & Tracking** | Ultralytics YOLO (`ultralytics`) |
-| **Web Framework** | FastAPI, Starlette |
-| **Real-Time Push & Streaming**| WebSockets (`/ws`), MJPEG Streaming (`multipart/x-mixed-replace`) |
-| **Templating & UI** | Jinja2, HTML5, Vanilla CSS3, Lucide Icons |
-| **Database & Persistence** | SQLite3, Pydantic |
-| **Alert Notifications** | Discord Webhooks (`requests`) |
+| **Language** | Python 3.10+ |
+| **Framework** | FastAPI, Starlette |
+| **Computer Vision** | OpenCV Headless (`opencv-python-headless`) |
+| **AI Inference & Tracking** | Ultralytics YOLO, `lapx` (ByteTrack) |
+| **Real-Time Push** | WebSockets (`ws://`, `wss://`) |
+| **Frontend UI** | HTML5, Vanilla CSS3 (Glassmorphism), Jinja2, Lucide Icons |
+| **Storage & Logging** | SQLite3, Pydantic |
+| **Notifications** | Discord Webhooks (`requests`) |
 
 ---
 
 ## 🚀 Quick Start Guide
-
-### Prerequisites
-- Python 3.10 or higher installed on your machine.
-- Git installed.
 
 ### 1. Clone the Repository
 ```bash
@@ -82,13 +99,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. Configure Environment Variables (Optional)
-Create a `.env` file in the root directory:
-```env
-DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN
-```
-
-### 5. Launch the Server
+### 4. Run the Application
 ```bash
 python main.py
 ```
@@ -100,42 +111,44 @@ Open your browser and navigate to:
 ## 📡 API & WebSocket Reference
 
 ### Dashboard & Video Streaming
-- `GET /`: Renders the responsive Jinja2 Web Dashboard.
+- `GET /`: Serves the responsive Jinja2 Web Dashboard.
 - `GET /video_feed`: MJPEG live video stream generator.
 - `WS /ws`: Bi-directional WebSocket endpoint for live alerts & performance metrics.
 
-### REST Endpoints
-- `POST /api/start-camera`: Starts background camera stream (`{ "source": 0, "confidence": 0.5 }`).
-- `POST /api/stop-camera`: Stops active background camera stream.
-- `GET /api/status`: Returns current system metrics, FPS, active in-frame count, and DB statistics.
-- `GET /api/events`: Retrieves paginated detection history from SQLite.
-- `DELETE /api/events/{event_id}`: Deletes a specific event record.
-- `DELETE /api/events`: Clears all event history.
-- `POST /api/settings`: Updates system configurations (Discord URL, Camera Name).
-- `POST /api/test-discord`: Triggers a test Discord alert.
+### REST APIs
+- `POST /api/start-camera`: Starts/restarts stream (`{ "source": "demo1", "confidence": 0.5 }`).
+- `POST /api/stop-camera`: Stops active stream processing.
+- `POST /api/process-frame`: Accepts raw HTML5 browser camera frames from smartphones.
+- `GET /api/status`: Returns FPS, in-frame counts, and database statistics.
+- `GET /api/events`: Retrieves paginated detection history.
+- `DELETE /api/events/{event_id}`: Deletes a specific event.
+- `DELETE /api/events`: Clears all history.
+- `POST /api/settings`: Saves Discord Webhook URL and Camera Name.
+- `POST /api/test-discord`: Sends a test alert to Discord.
 
 ### Redirect Handlers
-- `GET /redirect/event/{event_id}`: Redirects client to dashboard with target event modal highlighted.
-- `GET /redirect/start`: Triggers stream start and redirects to dashboard.
-- `GET /redirect/stop`: Triggers stream stop and redirects to dashboard.
+- `GET /redirect/event/{id}`: Redirects to dashboard home with target event modal open.
+- `GET /redirect/start`: Programmatic stream start redirect.
+- `GET /redirect/stop`: Programmatic stream stop redirect.
 
 ---
 
 ## ☁️ Cloud Deployment (Render)
 
 ### Deploying to Render
-1. Create a new **Web Service** on [Render](https://dashboard.render.com/).
+1. Create a **Web Service** on [Render](https://dashboard.render.com/).
 2. Connect your GitHub repository `jitendradoriya66/cctv-person-detector-ai`.
-3. Set the build settings:
+3. Set the build parameters:
    - **Environment**: `Python 3`
    - **Build Command**: `pip install -r requirements.txt`
    - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-4. **Important Notes**:
-   - **Camera Stream**: Cloud instances (Render) cannot access local USB webcams (`0`). Use an **RTSP Stream URL** (e.g. `rtsp://admin:pass@ip:554/stream`) in settings.
-   - **Persistence**: Attach a **Render Persistent Disk** to retain screenshot files (`/screenshots`) and SQLite DB (`cctv_events.db`).
+4. **Environment Variables**:
+   - Go to **Environment** tab in Render.
+   - Add `DISCORD_WEBHOOK_URL` = `https://discord.com/api/webhooks/...`
+5. **Persistence**: Attach a **Render Persistent Disk** to retain screenshot archives (`/screenshots`) and SQLite DB (`cctv_events.db`).
 
 ---
 
 ## 📜 License
 
-Distributed under the MIT License. See `LICENSE` for more details.
+Distributed under the MIT License. See `LICENSE` for details.
