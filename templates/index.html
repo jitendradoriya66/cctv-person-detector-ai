@@ -1530,26 +1530,47 @@
                         updateResultsPanel(data.persons_count, 0.90, 1, data.annotated_image);
                     } else if (data.type === 'PROCESSING_PROGRESS') {
                         if (data.task === 'VIDEO') {
-                            const pct = data.progress_pct || 0;
+                            const pct = Math.min(100, Math.max(0, data.progress_pct || 0));
+                            const container = document.getElementById('videoResultContainer');
+                            const loader = document.getElementById('videoLoader');
                             const bar = document.getElementById('videoProgressBar');
                             const text = document.getElementById('videoProgressText');
+
+                            if (container) container.style.display = 'flex';
+                            if (loader && pct < 100) loader.style.display = 'flex';
                             if (bar) bar.style.width = pct + '%';
                             if (text) {
-                                text.innerText = data.status_text || `Processing Frame ${data.sampled_frame || 0}/${data.total_sampled || 0} (${pct}%) • ${data.persons_detected || 0} Persons, ${data.vehicles_detected || 0} Vehicles`;
+                                text.innerText = data.status_text || `PROCESSING VIDEO: ${pct}% (${data.sampled_frame || 0}/${data.total_sampled || 0} Frames) • ${data.persons_detected || 0} Persons Tracked`;
                             }
                             if (data.latest_screenshot_url) {
                                 const display = document.getElementById('videoResultDisplay');
                                 if (display) display.src = data.latest_screenshot_url + '?t=' + Date.now();
                             }
+                            if (pct >= 100) {
+                                setTimeout(() => {
+                                    if (loader) loader.style.display = 'none';
+                                }, 800);
+                            }
                         } else if (data.task === 'IMAGE') {
+                            const pct = Math.min(100, Math.max(0, data.progress_pct || 0));
+                            const container = document.getElementById('imageResultContainer');
+                            const loader = document.getElementById('imageLoader');
                             const text = document.getElementById('imageStatusText');
-                            if (text && data.status_text) text.innerText = data.status_text;
+
+                            if (container) container.style.display = 'flex';
+                            if (text) text.innerText = data.status_text || `ANALYZING IMAGE... (${pct}%)`;
                             if (data.latest_screenshot_url) {
                                 const display = document.getElementById('imageResultDisplay');
                                 if (display) display.src = data.latest_screenshot_url + '?t=' + Date.now();
                             }
+                            if (pct >= 100) {
+                                setTimeout(() => {
+                                    if (loader) loader.style.display = 'none';
+                                }, 500);
+                            }
                         }
                     }
+
                 } catch (e) {}
             };
 

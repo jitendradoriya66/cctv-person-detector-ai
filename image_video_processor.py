@@ -300,70 +300,97 @@ class ImageVideoProcessor:
 
             frame_persons = 0
             frame_vehicles = 0
-            annotated_frame = frame.copy()
-            has_new_track = False
-            primary_track_id = 1
 
             if results and len(results) > 0 and results[0].boxes is not None:
                 boxes = results[0].boxes
                 
-                # FIRST PASS: Annotate ALL detected objects in this frame
+                frame_boxes_data = []
+                new_person_tracks = []
+
                 for box in boxes:
                     conf = float(box.conf[0].cpu().numpy())
                     cls_id = int(box.cls[0].cpu().numpy())
                     cls_name = CLASS_NAMES.get(cls_id, "Object")
+                    track_id = int(box.id[0].cpu().numpy()) if box.id is not None else 1
+                    xyxy = box.xyxy[0].cpu().numpy().astype(int).tolist()
 
                     if conf > max_overall_confidence:
                         max_overall_confidence = conf
 
                     if cls_id == 0:
                         frame_persons += 1
+                        unique_track_ids.add(track_id)
+                        if track_id not in alerted_track_ids:
+                            alerted_track_ids.add(track_id)
+                            new_person_tracks.append({
+                                "track_id": track_id,
+                                "box": xyxy,
+                                "conf": conf,
+                                "cls_name": cls_name
+                            })
                     elif cls_id in [2, 3, 5, 7]:
                         frame_vehicles += 1
 
-                    track_id = int(box.id[0].cpu().numpy()) if box.id is not None else 1
-                    if cls_id == 0:
-                        unique_track_ids.add(track_id)
-                        if track_id not in alerted_track_ids:
-                            has_new_track = True
-                            primary_track_id = track_id
-                            alerted_track_ids.add(track_id)
+                    frame_boxes_data.append({
+                        "track_id": track_id,
+                        "cls_id": cls_id,
+                        "cls_name": cls_name,
+                        "conf": conf,
+                        "box": xyxy
+                    })
 
-                    # Draw box for EVERY object in frame
-                    xyxy = box.xyxy[0].cpu().numpy().astype(int)
-                    x1, y1, x2, y2 = xyxy
-                    color = CLASS_COLORS.get(cls_id, (59, 130, 246))
-
+                # 1. MAIN FRAME: Draw ALL detected objects onto annotated_frame for main player display
+                annotated_frame = frame.copy()
+                for item in frame_boxes_data:
+                    x1, y1, x2, y2 = item["box"]
+                    cls_id = item["cls_id"]
+                    color = CLASS_COLORS.get(cls_id, (0, 240, 255))
+                    lbl = f"ID:{item['track_id']} {item['cls_name']} {int(item['conf'] * 100)}%"
                     cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 2)
-                    label = f"ID:{track_id} {cls_name} {int(conf * 100)}%" if box.id is not None else f"{cls_name} {int(conf * 100)}%"
-                    (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 2)
+                    (tw, th), _ = cv2.getTextSize(lbl, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 2)
                     cv2.rectangle(annotated_frame, (x1, max(0, y1 - 22)), (x1 + tw + 8, max(0, y1)), color, -1)
-                    cv2.putText(annotated_frame, label, (x1 + 4, max(14, y1 - 5)), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 2)
+                    cv2.putText(annotated_frame, lbl, (x1 + 4, max(14, y1 - 5)), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 2)
 
-                # Save keyframe screenshot if new person track ID or keyframe
                 timestamp = int(time.time())
-                filename = f"vid_frame_{sampled_frame_count}_{timestamp}.jpg"
-                filepath = os.path.join(self.screenshot_dir, filename)
-                cv2.imwrite(filepath, annotated_frame)
+                main_filename = f"vid_main_{sampled_frame_count}_{timestamp}.jpg"
+                main_filepath = os.path.join(self.screenshot_dir, main_filename)
+                cv2.imwrite(main_filepath, annotated_frame)
 
-                if has_new_track:
+                # 2. INDIVIDUAL EVENT SCREENSHOTS: Save dedicated screenshot highlighting ONLY THAT SPECIFIC PERSON
+                for ntr in new_person_tracks:
+                    tid = ntr["track_id"]
+                    x1, y1, x2, y2 = ntr["box"]
+                    conf = ntr["conf"]
+
+                    single_track_frame = frame.copy()
+                    color = (255, 240, 0)  # Bright Cyan
+                    cv2.rectangle(single_track_frame, (x1, y1), (x2, y2), color, 2)
+                    label = f"Person #{tid} {int(conf * 100)}%"
+                    (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 2)
+                    cv2.rectangle(single_track_frame, (x1, max(0, y1 - 22)), (x1 + tw + 8, max(0, y1)), color, -1)
+                    cv2.putText(single_track_frame, label, (x1 + 4, max(14, y1 - 5)), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 2)
+
+                    event_filename = f"person_track_{tid}_{timestamp}.jpg"
+                    event_filepath = os.path.join(self.screenshot_dir, event_filename)
+                    cv2.imwrite(event_filepath, single_track_frame)
+
                     event_id = add_event(
                         camera_name=camera_name,
-                        track_id=primary_track_id,
+                        track_id=tid,
                         object_class="person",
-                        confidence=max_overall_confidence,
-                        screenshot_filename=filename,
-                        screenshot_path=filepath,
+                        confidence=conf,
+                        screenshot_filename=event_filename,
+                        screenshot_path=event_filepath,
                         source_type="VIDEO"
                     )
 
                     event_data = {
                         "id": event_id,
-                        "track_id": primary_track_id,
-                        "confidence": round(max_overall_confidence, 2),
+                        "track_id": tid,
+                        "confidence": round(conf, 2),
                         "timestamp_sec": round(current_frame_idx / fps, 1),
-                        "filename": filename,
-                        "screenshot_url": f"/screenshots/{filename}"
+                        "filename": event_filename,
+                        "screenshot_url": f"/screenshots/{event_filename}"
                     }
                     events_generated.append(event_data)
 
@@ -375,31 +402,34 @@ class ImageVideoProcessor:
                                 "id": event_id,
                                 "datetime_str": time.strftime("%Y-%m-%d %H:%M:%S"),
                                 "camera_name": camera_name,
-                                "track_id": primary_track_id,
-                                "object_class": f"Person ID #{primary_track_id}",
-                                "confidence": round(max_overall_confidence, 2),
-                                "screenshot_filename": filename,
-                                "screenshot_path": filepath,
+                                "track_id": tid,
+                                "object_class": f"Person ID #{tid}",
+                                "confidence": round(conf, 2),
+                                "screenshot_filename": event_filename,
+                                "screenshot_path": event_filepath,
                                 "source_type": "VIDEO"
                             }
                         })
                     except Exception:
                         pass
 
+
                 # Broadcast real-time progress update over WebSocket
                 try:
                     ws_manager.broadcast_sync({
                         "type": "PROCESSING_PROGRESS",
                         "task": "VIDEO",
-                        "progress_pct": min(100, pct),
+                        "progress_pct": min(99, pct),
                         "sampled_frame": sampled_frame_count,
                         "total_sampled": total_sampled_frames,
                         "persons_detected": len(unique_track_ids),
                         "vehicles_detected": frame_vehicles,
-                        "latest_screenshot_url": f"/screenshots/{filename}"
+                        "status_text": f"Processing Frame {sampled_frame_count}/{total_sampled_frames} ({pct}%) • {len(unique_track_ids)} Persons Tracked",
+                        "latest_screenshot_url": f"/screenshots/{main_filename}"
                     })
                 except Exception:
                     pass
+
 
         cap.release()
         if os.path.exists(temp_video_path):

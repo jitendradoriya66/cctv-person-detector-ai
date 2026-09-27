@@ -408,14 +408,24 @@ class CameraManager:
 
             ws_manager.sync_broadcast({"type": "STATUS_UPDATE", "status": self.get_status()})
 
-    def _handle_detection_event(self, frame: np.ndarray, track_id: int, object_class: str, confidence: float):
+    def _handle_detection_event(self, frame: np.ndarray, track_id: int, object_class: str, confidence: float, box_coords: Optional[List[int]] = None):
         try:
             timestamp_sec = int(time.time())
             filename = f"person_{track_id}_{timestamp_sec}.jpg"
             screenshot_path = os.path.join(self.screenshot_dir, filename)
 
+            if box_coords and len(box_coords) == 4:
+                x1, y1, x2, y2 = box_coords
+                color = (255, 240, 0)
+                cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+                label = f"Person #{track_id} {int(confidence * 100)}%"
+                (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 2)
+                cv2.rectangle(frame, (x1, max(0, y1 - 22)), (x1 + tw + 8, max(0, y1)), color, -1)
+                cv2.putText(frame, label, (x1 + 4, max(14, y1 - 5)), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 2)
+
             cv2.imwrite(screenshot_path, frame)
             logger.info(f"Saved event screenshot: {screenshot_path}")
+
 
             event_id = add_event(
                 camera_name=self.camera_name,
