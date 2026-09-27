@@ -755,11 +755,18 @@
 
         /* Mobile Adjustments & Responsive Layout Fixes */
         @media (max-width: 768px) {
+            html, body {
+                overflow-x: hidden !important;
+                width: 100vw !important;
+                position: relative;
+            }
             header {
-                padding: 10px 14px;
+                padding: 10px 12px;
                 flex-direction: column;
                 align-items: stretch;
                 gap: 10px;
+                width: 100%;
+                box-sizing: border-box;
             }
             .brand-container {
                 justify-content: center;
@@ -767,15 +774,18 @@
             }
             .header-badges {
                 justify-content: center;
-                gap: 8px;
+                gap: 6px;
                 width: 100%;
+                flex-wrap: wrap;
             }
             .hud-badge {
                 font-size: 0.68rem;
                 padding: 3px 8px;
+                max-width: 100%;
             }
             .mode-tabs-wrapper {
                 width: 100%;
+                max-width: 100%;
                 overflow-x: auto;
                 -webkit-overflow-scrolling: touch;
                 scrollbar-width: none;
@@ -796,16 +806,35 @@
                 padding: 8px 12px;
             }
             .container {
-                padding: 10px 10px;
+                padding: 10px;
                 gap: 10px;
+                width: 100%;
+                max-width: 100vw;
+                box-sizing: border-box;
+                overflow-x: hidden;
+            }
+            .main-grid {
+                grid-template-columns: 1fr !important;
+                width: 100%;
+                max-width: 100%;
+            }
+            .card {
+                padding: 12px;
+                width: 100%;
+                max-width: 100%;
+                box-sizing: border-box;
+                overflow: hidden;
             }
             .stats-grid {
                 grid-template-columns: repeat(2, 1fr);
                 gap: 8px;
+                width: 100%;
             }
             .stat-card {
                 padding: 10px 10px;
                 gap: 8px;
+                width: 100%;
+                box-sizing: border-box;
             }
             .stat-value {
                 font-size: 1.1rem;
@@ -813,17 +842,31 @@
             .drop-zone {
                 padding: 20px 12px;
                 min-height: 140px;
+                width: 100%;
+                box-sizing: border-box;
             }
             .results-bar {
                 flex-direction: column;
                 align-items: stretch;
                 gap: 10px;
+                width: 100%;
+                box-sizing: border-box;
+            }
+            .results-metrics {
+                justify-content: space-around;
+                width: 100%;
+                gap: 8px;
             }
             .results-bar > div:last-child {
                 width: 100%;
+                flex-wrap: wrap;
             }
             .results-bar button {
-                flex: 1;
+                flex: 1 1 calc(50% - 6px);
+                min-width: 120px;
+                justify-content: center;
+                font-size: 0.75rem;
+                padding: 8px 10px;
             }
             .gallery-grid {
                 grid-template-columns: repeat(2, 1fr);
@@ -841,16 +884,20 @@
 
         @media (max-width: 480px) {
             .brand-title {
-                font-size: 1.05rem;
+                font-size: 1.02rem;
             }
             .brand-subtitle {
-                font-size: 0.65rem;
+                font-size: 0.62rem;
             }
             .stats-grid {
                 grid-template-columns: repeat(2, 1fr);
             }
             .gallery-grid {
                 grid-template-columns: repeat(2, 1fr);
+            }
+            .results-bar button {
+                flex: 1 1 100%;
+                width: 100%;
             }
         }
 
