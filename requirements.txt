@@ -10,3 +10,6 @@ websockets>=12.0
 lapx>=0.5.5
 numpy<3.0.0
 torch>=2.0.0
+redis>=5.0.0
+wsproto>=1.2.0
+httptools>=0.6.0

@@ -1,17 +1,17 @@
-# 🛡️ AI CCTV Person Detection & Real-Time Security Sentinel
+# 🛡️ AI Visual Security & Threat Detection System
 
 ![Python](https://img.shields.io/badge/Python-3.11.9-blue?style=for-the-badge&logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.108%2B-009688?style=for-the-badge&logo=fastapi&logoColor=white)
 ![YOLO](https://img.shields.io/badge/YOLO-Ultralytics-FF6F00?style=for-the-badge&logo=ultralytics&logoColor=white)
-![OpenCV](https://img.shields.io/badge/OpenCV-Headless-5C3EE8?style=for-the-badge&logo=opencv&logoColor=white)
-![WebSockets](https://img.shields.io/badge/WebSockets-Realtime_Push-430098?style=for-the-badge&logo=socketdotio&logoColor=white)
-![Mobile](https://img.shields.io/badge/Mobile-HTML5_Camera-10B981?style=for-the-badge&logo=android&logoColor=white)
+![ByteTrack](https://img.shields.io/badge/ByteTrack-Tracking-3B82F6?style=for-the-badge&logo=opencv&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-Cache_&_PubSub-DC382D?style=for-the-badge&logo=redis&logoColor=white)
+![WebSockets](https://img.shields.io/badge/WebSockets-Bidirectional-00F0FF?style=for-the-badge&logo=socketdotio&logoColor=white)
 ![Render](https://img.shields.io/badge/Render-Deployed-46E3B7?style=for-the-badge&logo=render&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
 
-An enterprise-grade, production-stabilized real-time computer vision security monitoring system built with **FastAPI**, **Ultralytics YOLO**, **OpenCV Headless**, **ByteTrack**, **WebSockets**, and **SQLite**.
+An enterprise-grade, cloud-optimized **AI Visual Security & Threat Detection System** built with **FastAPI**, **Ultralytics YOLO**, **ByteTrack**, **Redis Caching**, **Bi-Directional WebSockets**, and a **Dark AI Command Center Web Dashboard**.
 
-Designed for both **Local Hardware Execution** (physical USB webcams) and **Cloud Container Deployments (Render)** with zero-dependency fallback, non-blocking async architecture, synchronized persistent tracking, and mobile HTML5 camera streaming.
+Optimized specifically for **Render Cloud Deployments (CPU free-tier instances)** without relying on heavy continuous live video streams, while supporting static **Image Analysis**, **Sampled Video Tracking (1 FPS)**, and **Live Webcam Capture**.
 
 ---
 
@@ -19,163 +19,143 @@ Designed for both **Local Hardware Execution** (physical USB webcams) and **Clou
 
 ```mermaid
 flowchart TD
-    subgraph Clients["Input Sources & Frontend Clients"]
-        A1["Local USB WebCam (0, 1)"]
-        A2["RTSP / Remote MP4 CCTV Stream"]
-        A3["Smartphone / Laptop Browser Cam\n(HTML5 getUserMedia)"]
+    subgraph Clients["Input Sources & Mobile/Desktop Clients"]
+        A1["📷 Image File Upload (.jpg, .png, .webp)"]
+        A2["🎥 Video File Upload (.mp4, .avi, .mov)"]
+        A3["📷 Local Browser Webcam (HTML5 Canvas)"]
     end
 
-    subgraph Backend["FastAPI Backend Engine"]
-        B1["Stream Controller & Source Validator\n(cap.isOpened + cap.read Check)"]
-        B2["Automatic Cloud Fallback Engine\n(Intel IoT Pedestrian Demo Stream)"]
-        B3["FastAPI Threadpool Worker\n(run_in_threadpool)"]
-        B4["Thread Lock Synchronizer\n(tracker_lock & state_lock)"]
-        B5["YOLO Model & ByteTrack Tracker\n(yolo26n.pt Lazy Init)"]
+    subgraph Backend["FastAPI & Vision Processing Engine"]
+        B1["FastAPI Router & Threadpool Offloader\n(run_in_threadpool)"]
+        B2["Image & Video Processor\n(image_video_processor.py)"]
+        B3["YOLOv8/v11 Detection Model\n(yolo26n.pt Lazy Init)"]
+        B4["ByteTrack Multi-Object Tracker\n(1 FPS Sampling Rate)"]
     end
 
-    subgraph Outputs["Outputs & Push Systems"]
-        C1["MJPEG Live Stream Generator\n(/video_feed)"]
-        C2["Bi-Directional WebSockets\n(/ws wss:// & ws://)"]
-        C3["Discord Webhook Engine\n(Screenshot Embed + Image Upload)"]
-        C4["SQLite Event Database\n(cctv_events.db & Screenshots)"]
-        C5["Glassmorphism Web Dashboard\n(Responsive UI & Event Gallery)"]
+    subgraph Storage["Caching & Database Layer"]
+        C1["Redis Cache & Pub/Sub\n(redis_cache.py with Fail-Safe Fallback)"]
+        C2["SQLite Event Database\n(cctv_events.db + Screenshots)"]
+    end
+
+    subgraph Out["Real-Time Output & Push Systems"]
+        D1["Bi-Directional WebSockets (/ws)\n(Frame Processing & Event Push)"]
+        D2["Discord Webhook Alerts\n(Annotated Screenshot Embeds)"]
+        D3["Dark AI Command Center HUD\n(Responsive UI & Full Pagination)"]
     end
 
     A1 --> B1
     A2 --> B1
-    A3 --> B3
-    B1 -->|Hardware Present| B4
-    B1 -->|Cloud / No Webcam| B2 --> B4
+    A3 -->|WebSocket PROCESS_FRAME| D1
+    B1 --> B2
+    D1 --> B1
+    B2 --> B3
     B3 --> B4
-    B4 --> B5
-    B5 --> C1 & C2 & C3 & C4 & C5
+    B4 --> C1 & C2
+    C1 --> D1 & D2 & D3
+    C2 --> D3
 ```
 
 ---
 
-## 🌟 Complete Feature Matrix
+## 🌟 Key Features
 
-### 🎥 1. Multi-Source Stream Engine & Cloud Fallback
-- **Physical Webcam Support**: Detects and opens local USB webcams (`/dev/video0`, index `0`, `1`) when hardware exists.
-- **Smart Source Validation**: Validates both `cap.isOpened()` AND reads the initial test frame (`cap.read()`) before rendering.
-- **Automatic Cloud Fallback**: If physical webcams are absent (e.g., inside Render cloud containers), automatically transitions to a verified online CCTV demo stream without crashing or hanging.
-- **Detailed Lifecycle Logging**: Structured Python `logging` captures selected source, resolution, fallback events, model readiness, and OpenCV errors.
+### 📷 1. Static Image AI Inference
+- Accepts image file uploads (`.jpg`, `.png`, `.webp`).
+- Performs YOLO person detection, annotates bounding boxes & confidence scores (`Person 92%`).
+- Captures screenshot evidence, logs database event (`source_type='IMAGE'`), and sends Discord notifications.
 
-### 📱 2. Sequential HTML5 Smartphone Camera Capture
-- **Direct Browser Camera**: Streams smartphone (Android / iPhone) or laptop cameras via `navigator.mediaDevices.getUserMedia`.
-- **Sequential Async Loop**: Replaces uncontrolled `setInterval` with an `async/await` processing loop (`capture frame -> encode -> POST /api/process-frame -> await response -> update UI -> 60ms delay`) featuring an 8-second `AbortController` timeout.
-- **Zero Request Flood**: Ensures browser request rate naturally matches server processing capacity without backlogs.
+### 🎥 2. Sampled Video Tracking (ByteTrack)
+- Accepts video file uploads (`.mp4`, `.avi`, `.mov`).
+- Applies configurable **1 FPS frame sampling rate** (specifically optimized for lightweight CPU compute on free Render instances).
+- Tracks unique Person IDs frame-to-frame using **ByteTrack**, capturing keyframe evidence screenshots per track ID.
 
-### 🔒 3. Thread-Safe YOLO Tracking & Non-Blocking Async
-- **Persistent Tracker Lock**: Synchronizes all calls to `self.model.track(..., persist=True)` using `self.tracker_lock` to eliminate kalman filter race conditions.
-- **Threadpool Offloading**: Offloads synchronous CPU-heavy inference to worker threadpool via `run_in_threadpool`, keeping FastAPI's asyncio event loop responsive to WebSockets and status queries.
-- **Automatic Tracker Reset**: Resets ByteTrack states (`reset_tracker()`) whenever a stream starts, stops, or changes sources.
+### 🔌 3. Bi-Directional WebSocket Frame Streaming
+- Web browser webcam frames are transmitted directly over the `/ws` WebSocket connection (`PROCESS_FRAME` JSON payload).
+- Eliminates HTTP fetch request spam entirely during webcam capture.
+- Server responds instantly over WebSocket with `FRAME_PROCESSED` data.
 
-### ⚡ 4. WebSockets & Real-Time Alert Engine (`/ws`)
-- **Instant Event Push**: Pushes `NEW_EVENT` and `STATUS_UPDATE` payloads to connected browsers instantly.
-- **Auto Protocol Detection**: Seamlessly switches between `wss://` on HTTPS (Render) and `ws://` on HTTP.
-- **Web Audio Alarm**: Synthesizes real-time Web Audio API alarm sound whenever a person is detected.
-- **Pre-Warmed Startup**: Pre-warms YOLO model during FastAPI `@app.on_event("startup")`.
+### ⚡ 4. Redis Caching with Automatic Fail-Safe Fallback
+- Integrates `redis_cache.py` for high-performance caching of paginated events and system metrics (`stats`).
+- Automatic cache invalidation on event creation or deletion.
+- **Fail-safe Fallback**: If Redis server is not running or unreachable, the system automatically falls back to local SQLite & memory operations without crashing or throwing errors.
 
-### 📊 5. Clear Statistics & Event Gallery
-- **Disambiguated Metrics**: Displays **Active In-Frame Persons** (`active_persons`) separately from **Total Historical DB Events** (`stats.persons_count`).
-- **SQLite Storage**: Logs event timestamp, camera name, track ID, confidence rating, and screenshot filepath.
-- **Discord Alerts**: Dispatches rich Discord Webhook embed alerts with embedded screenshot image attachments.
+### 🎨 5. Dark AI Command Center Dashboard & Full Pagination
+- Tactical Cyberpunk HUD aesthetic (Obsidian background `#050811`, Cyan glows `#00F0FF`, Emerald green `#10B981`, Threat red alerts `#FF2E54`).
+- **Mobile Responsive Layout**: Touch-friendly horizontal scroll tab bar, 100% width cards, and scaling stat metrics.
+- **Full Backend & Frontend Pagination**: Paginated API (`/api/events?page=1&limit=12`) with `[ Prev ]`, `Page X of Y`, and `[ Next ]` controls.
+- **Custom Confirmation Modals**: Every destructive action (deleting single event `#ID` or clearing all logs) prompts a custom confirmation modal before executing.
 
 ---
 
 ## 🛠️ Technology Stack
 
-| Component | Technology | Version |
-| :--- | :--- | :--- |
-| **Language** | Python | `3.11.9` |
-| **Web Framework** | FastAPI / Starlette | `>=0.108.0` |
-| **ASGI Server** | Uvicorn (Standard) | `>=0.25.0` |
-| **Computer Vision** | OpenCV Headless | `>=4.8.0.76` |
-| **AI Inference** | Ultralytics YOLO | `>=8.3.0` |
-| **Tracking Engine** | ByteTrack (`lapx`) | `>=0.5.5` |
-| **Real-Time Push** | WebSockets | `>=12.0` |
-| **Storage & Database** | SQLite3 / Pydantic | Built-in |
-| **Frontend UI** | HTML5, Vanilla CSS3, Jinja2, Lucide Icons | Built-in |
-| **Notifications** | Discord Webhooks (`requests`) | `>=2.31.0` |
+| Layer | Technology | Version | Purpose |
+| :--- | :--- | :--- | :--- |
+| **Language** | Python | `3.11.9` | Primary Backend |
+| **Web Framework** | FastAPI / Starlette | `>=0.108.0` | Async REST & WebSocket API |
+| **ASGI Server** | Uvicorn (Standard) | `>=0.25.0` | Production Web Server |
+| **Computer Vision** | OpenCV Headless | `>=4.8.0.76` | Image Decoding & Annotation |
+| **AI Detection** | Ultralytics YOLO | `>=8.3.0` | Person Detection Model |
+| **Tracking Engine** | ByteTrack (`lapx`) | `>=0.5.5` | Multi-Object Track ID Persistence |
+| **Caching / PubSub**| Redis | `>=5.0.0` | High-Performance Event Cache & Fallback |
+| **Real-Time Push** | WebSockets (`wsproto`, `websockets`) | `>=12.0` | Bi-directional Push & Frame Stream |
+| **Database** | SQLite3 / Pydantic | Built-in | Event Logs & System Configuration |
+| **Frontend UI** | HTML5, CSS3, JS, Jinja2, Lucide | Built-in | Dark AI Command Center Dashboard |
+| **Notifications** | Discord Webhooks | `>=2.31.0` | Real-time Threat Alert Messages |
 
 ---
 
 ## 🚀 Quick Start Guide (Local Development)
 
-### 1. Clone the Repository
+### 1. Clone Repository & Install Dependencies
 ```bash
 git clone https://github.com/jitendradoriya66/cctv-person-detector-ai.git
-cd cctv-person-detector-ai
-```
-
-### 2. Set Up Virtual Environment
-```bash
-# Windows PowerShell
-python -m venv venv
-.\venv\Scripts\activate
-
-# macOS / Linux
-python3 -m venv venv
-source venv/bin/activate
-```
-
-### 3. Install Dependencies
-```bash
+cd cctv-person-detector-ai/cctv_ai
 pip install -r requirements.txt
 ```
 
-### 4. Run Integration Test Suite
+### 2. Run Integration Test Suite
 ```bash
 python test_suite.py
 ```
 
-### 5. Launch Application
+### 3. Launch Application Server
 ```bash
 python main.py
 ```
-Open browser at: 👉 **[http://127.0.0.1:8000](http://127.0.0.1:8000)**
+Open your browser at: 👉 **[http://127.0.0.1:8000](http://127.0.0.1:8000)**
 
 ---
 
 ## 📡 Complete API & WebSocket Reference
 
-### Streaming & Dashboard
-- `GET /`: Serves the responsive Jinja2 Web Dashboard.
-- `GET /video_feed`: MJPEG live stream generator (handles stream stoppage and failure states).
-- `WS /ws`: Bi-directional WebSocket endpoint for live alerts, FPS, and status updates.
+### Dashboard & WebSockets
+- `GET /`: Serves the Dark AI Command Center UI.
+- `WS /ws`: Bi-directional WebSocket endpoint. Accepts `{ "type": "PROCESS_FRAME", "frame": "<base64>" }` and broadcasts `{ "type": "NEW_EVENT" }` and `{ "type": "FRAME_PROCESSED" }`.
 
 ### REST APIs
-- `POST /api/start-camera`: Starts/restarts camera (`{ "source": "demo1", "confidence": 0.5 }`).
-- `POST /api/stop-camera`: Stops active stream processing.
-- `POST /api/process-frame`: Accepts uploaded mobile camera frames (`UploadFile`).
-- `GET /api/status`: Returns live FPS, active in-frame persons, stream status, and DB stats.
-- `GET /api/events`: Retrieves paginated detection history.
-- `DELETE /api/events/{event_id}`: Deletes specific event record.
-- `DELETE /api/events`: Clears all detection event history.
-- `POST /api/settings`: Saves Discord Webhook URL and Camera Name.
+- `POST /api/upload-image`: Accepts image file upload, executes YOLO detection, returns annotated image URL & metrics.
+- `POST /api/upload-video`: Accepts video file upload, samples frames at 1 FPS, applies ByteTrack tracking, returns keyframes & summary.
+- `POST /api/process-frame`: HTTP fallback endpoint for single frame processing.
+- `GET /api/status`: Returns system status and Redis-cached metrics (`stats`).
+- `GET /api/events?page=1&limit=12`: Returns paginated event history (`events`, `total`, `page`, `total_pages`).
+- `DELETE /api/events/{event_id}`: Deletes specific event record (requires confirmation).
+- `DELETE /api/events`: Clears all detection event history (requires confirmation).
+- `POST /api/settings`: Updates Discord Webhook URL.
 - `POST /api/test-discord`: Triggers test notification alert to Discord.
 
 ---
 
 ## ☁️ Render Cloud Deployment Guide
 
-### 1. Create Render Web Service
-1. Log in to [Render Dashboard](https://dashboard.render.com/).
-2. Click **New +** -> **Web Service**.
-3. Connect repository `jitendradoriya66/cctv-person-detector-ai`.
-
-### 2. Configure Build Parameters
+### Build & Run Commands on Render:
 - **Runtime**: `Python 3`
 - **Build Command**: `pip install -r requirements.txt`
 - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
 
-### 3. Environment Variables (Optional)
-Add in Render **Environment** tab:
-- `DISCORD_WEBHOOK_URL` = `https://discord.com/api/webhooks/...`
-
-### 4. Persistent Disk Storage (Recommended)
-Attach a **Render Persistent Disk** to retain screenshot archives (`/screenshots`) and database (`cctv_events.db`) across service restarts.
+### Environment Variables:
+- `DISCORD_WEBHOOK_URL` = `https://discord.com/api/webhooks/...` (Optional)
+- `REDIS_URL` = `redis://...` (Optional; system automatically falls back to SQLite/Memory if omitted)
 
 ---
 

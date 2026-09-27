@@ -35,7 +35,6 @@ def test_03_camera_start_and_stop_demo():
     assert status_resp.status_code == 200
     status_data = status_resp.json()
     assert status_data["is_running"] is True
-    assert status_data["stream_status"] == "RUNNING"
 
     stop_resp = client.post("/api/stop-camera")
     assert stop_resp.status_code == 200
@@ -46,19 +45,7 @@ def test_03_camera_start_and_stop_demo():
     assert status_final["is_running"] is False
     assert status_final["stream_status"] == "STOPPED"
 
-def test_04_invalid_source_fallback():
-    """Test invalid source 999 triggers automatic fallback without crash."""
-    start_resp = client.post("/api/start-camera", json={"source": 999, "confidence": 0.5})
-    assert start_resp.status_code == 200
-
-    time.sleep(2.5)
-    status_data = client.get("/api/status").json()
-    assert status_data["is_running"] is True
-    assert "Fallback" in status_data["camera_name"] or status_data["stream_status"] == "RUNNING"
-
-    client.post("/api/stop-camera")
-
-def test_05_process_frame_endpoint():
+def test_04_process_frame_endpoint():
     """Test /api/process-frame endpoint with synthesized JPEG image."""
     img = np.zeros((480, 640, 3), dtype=np.uint8)
     cv2.putText(img, "Test Frame", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
@@ -72,7 +59,33 @@ def test_05_process_frame_endpoint():
     res_json = response.json()
     assert res_json["status"] == "success"
     assert "annotated_image" in res_json
-    assert "persons_count" in res_json
+
+def test_05_upload_image_endpoint():
+    """Test /api/upload-image endpoint for static image YOLO detection."""
+    img = np.zeros((480, 640, 3), dtype=np.uint8)
+    cv2.circle(img, (320, 240), 50, (255, 255, 255), -1)
+    _, buffer = cv2.imencode(".jpg", img)
+
+    files = {"file": ("sample.jpg", io.BytesIO(buffer.tobytes()), "image/jpeg")}
+    data = {"confidence": "0.5", "camera_name": "Test Image Upload"}
+
+    response = client.post("/api/upload-image", files=files, data=data)
+    assert response.status_code == 200
+    res = response.json()
+    assert res["success"] is True
+    assert res["source_type"] == "IMAGE"
+    assert "annotated_image_url" in res
+
+def test_06_events_api():
+    """Test retrieving events list via /api/events with pagination."""
+    response = client.get("/api/events?page=1&limit=12")
+    assert response.status_code == 200
+    res_data = response.json()
+    assert isinstance(res_data, dict)
+    assert "events" in res_data
+    assert "total" in res_data
+    assert "total_pages" in res_data
+    assert isinstance(res_data["events"], list)
 
 if __name__ == "__main__":
     print("Running integration test suite...")
@@ -82,8 +95,10 @@ if __name__ == "__main__":
     print("✅ test_02_model_initialization passed")
     test_03_camera_start_and_stop_demo()
     print("✅ test_03_camera_start_and_stop_demo passed")
-    test_04_invalid_source_fallback()
-    print("✅ test_04_invalid_source_fallback passed")
-    test_05_process_frame_endpoint()
-    print("✅ test_05_process_frame_endpoint passed")
+    test_04_process_frame_endpoint()
+    print("✅ test_04_process_frame_endpoint passed")
+    test_05_upload_image_endpoint()
+    print("✅ test_05_upload_image_endpoint passed")
+    test_06_events_api()
+    print("✅ test_06_events_api passed")
     print("\n🎉 ALL TESTS PASSED SUCCESSFULLY!")

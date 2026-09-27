@@ -13,8 +13,8 @@ ENV/
 *.db
 *.sqlite3
 
-# Screenshots (optional to exclude or include sample)
-# screenshots/*.jpg
+# Screenshots
+screenshots/*.jpg
 
 # IDEs
 .vscode/

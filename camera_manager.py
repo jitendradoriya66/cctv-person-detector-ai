@@ -12,6 +12,7 @@ from ultralytics import YOLO
 from database import add_event, get_setting, save_setting
 from discord_notifier import send_discord_notification
 from websocket_manager import ws_manager
+from image_video_processor import image_video_processor
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -547,6 +548,33 @@ class CameraManager:
             if self.current_frame_bytes is None:
                 self._create_placeholder_frame("AI CCTV Camera System Ready")
             return self.current_frame_bytes
+
+    def process_image(self, image_bytes: bytes, confidence: float = 0.50, camera_name: str = "Uploaded Image", webhook_url: Optional[str] = None) -> Dict[str, Any]:
+        """Wrapper for offline image processing using YOLO."""
+        model = self.get_model()
+        if model is None:
+            return {"success": False, "error": "YOLO model failed to initialize."}
+        return image_video_processor.process_image(
+            image_bytes=image_bytes,
+            model=model,
+            confidence=confidence,
+            camera_name=camera_name,
+            webhook_url=webhook_url
+        )
+
+    def process_video(self, video_bytes: bytes, sample_interval_sec: float = 1.0, confidence: float = 0.50, camera_name: str = "Uploaded Video", webhook_url: Optional[str] = None) -> Dict[str, Any]:
+        """Wrapper for sampled video processing using YOLO and ByteTrack."""
+        model = self.get_model()
+        if model is None:
+            return {"success": False, "error": "YOLO model failed to initialize."}
+        return image_video_processor.process_video(
+            video_bytes=video_bytes,
+            model=model,
+            sample_interval_sec=sample_interval_sec,
+            confidence=confidence,
+            camera_name=camera_name,
+            webhook_url=webhook_url
+        )
 
     def get_status(self) -> Dict[str, Any]:
         return {

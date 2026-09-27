@@ -1,5 +1,7 @@
 import os
 import time
+import json
+import base64
 import asyncio
 import logging
 from typing import Optional, Dict, Any
@@ -11,7 +13,7 @@ from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-from database import init_db, get_events, delete_event, clear_all_events, get_stats, get_setting, save_setting
+from database import init_db, get_events, get_events_paginated, delete_event, clear_all_events, get_stats, get_setting, save_setting
 from camera_manager import camera_manager
 from discord_notifier import send_discord_notification
 from websocket_manager import ws_manager
@@ -98,6 +100,36 @@ async def websocket_endpoint(websocket: WebSocket):
             data = await websocket.receive_text()
             if data == "ping":
                 await websocket.send_text("pong")
+                continue
+
+            # Handle JSON WebSocket messages (e.g. process frame over WebSocket)
+            try:
+                msg = json.loads(data)
+                msg_type = msg.get("type")
+
+                if msg_type == "PROCESS_FRAME":
+                    frame_b64 = msg.get("frame")
+                    if frame_b64:
+                        if "," in frame_b64:
+                            frame_b64 = frame_b64.split(",")[1]
+                        contents = base64.b64decode(frame_b64)
+                        confidence = float(msg.get("confidence", 0.50))
+                        camera_name = msg.get("camera_name", "Webcam Stream")
+
+                        result = await run_in_threadpool(
+                            camera_manager.process_single_frame,
+                            contents,
+                            confidence=confidence,
+                            camera_name=camera_name
+                        )
+                        await websocket.send_json({
+                            "type": "FRAME_PROCESSED",
+                            "status": result.get("status", "success"),
+                            "annotated_image": result.get("annotated_image"),
+                            "persons_count": result.get("persons_count", 0)
+                        })
+            except Exception as msg_err:
+                pass
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket)
     except Exception as e:
@@ -215,6 +247,60 @@ async def process_browser_frame(
     return JSONResponse(result)
 
 
+@app.post("/api/upload-image")
+async def upload_image(
+    file: UploadFile = File(...),
+    confidence: float = Form(0.50),
+    camera_name: str = Form("Image Upload Analysis")
+):
+    """
+    API Endpoint for static image detection:
+    Uploads an image file, runs YOLO detection, logs database event,
+    triggers optional Discord alert, and returns annotated result URL.
+    """
+    contents = await file.read()
+    if not contents or len(contents) == 0:
+        raise HTTPException(status_code=400, detail="Uploaded image file is empty.")
+
+    result = await run_in_threadpool(
+        camera_manager.process_image,
+        contents,
+        confidence=confidence,
+        camera_name=camera_name
+    )
+    if not result.get("success", False):
+        raise HTTPException(status_code=400, detail=result.get("error", "Image processing failed."))
+    return JSONResponse(result)
+
+
+@app.post("/api/upload-video")
+async def upload_video(
+    file: UploadFile = File(...),
+    sample_interval_sec: float = Form(1.0),
+    confidence: float = Form(0.50),
+    camera_name: str = Form("Video Upload Analysis")
+):
+    """
+    API Endpoint for sampled video file detection & ByteTrack tracking:
+    Uploads a video, samples frames (e.g. 1 frame/sec for lightweight CPU compute),
+    tracks Person IDs, captures evidence screenshots, and records database events.
+    """
+    contents = await file.read()
+    if not contents or len(contents) == 0:
+        raise HTTPException(status_code=400, detail="Uploaded video file is empty.")
+
+    result = await run_in_threadpool(
+        camera_manager.process_video,
+        contents,
+        sample_interval_sec=sample_interval_sec,
+        confidence=confidence,
+        camera_name=camera_name
+    )
+    if not result.get("success", False):
+        raise HTTPException(status_code=400, detail=result.get("error", "Video processing failed."))
+    return JSONResponse(result)
+
+
 # ============================================================
 # 6. SYSTEM STATUS & METRICS API
 # ============================================================
@@ -230,9 +316,19 @@ async def get_system_status():
 # 7. DETECTION EVENTS APIs
 # ============================================================
 @app.get("/api/events")
-async def list_events(limit: int = 50, offset: int = 0):
-    events = get_events(limit=limit, offset=offset)
-    return JSONResponse(events)
+async def list_events(page: Optional[int] = None, limit: int = 12, offset: int = 0, camera_name: Optional[str] = None):
+    if page is not None:
+        paginated_data = get_events_paginated(page=page, limit=limit, camera_name=camera_name)
+        return JSONResponse(paginated_data)
+    
+    # If offset parameter is explicitly passed without page
+    if offset > 0:
+        events = get_events(limit=limit, offset=offset, camera_name=camera_name)
+        return JSONResponse(events)
+        
+    # Default to page 1 paginated response
+    paginated_data = get_events_paginated(page=1, limit=limit, camera_name=camera_name)
+    return JSONResponse(paginated_data)
 
 @app.delete("/api/events/{event_id}")
 async def delete_single_event(event_id: int):
