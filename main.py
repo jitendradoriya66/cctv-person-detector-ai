@@ -5,15 +5,22 @@ import base64
 import asyncio
 import logging
 from typing import Optional, Dict, Any
-from fastapi import FastAPI, Request, HTTPException, WebSocket, WebSocketDisconnect, status, UploadFile, File, Form
+from fastapi import FastAPI, Request, Response, HTTPException, WebSocket, WebSocketDisconnect, status, UploadFile, File, Form, Depends
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.concurrency import run_in_threadpool
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from dotenv import load_dotenv
 
-from database import init_db, get_events, get_events_paginated, delete_event, clear_all_events, get_stats, get_setting, save_setting
+from database import (
+    init_db, get_events, get_events_paginated, delete_event, clear_all_events, get_stats, get_setting, save_setting,
+    create_user, get_user_by_username, get_user_by_email, get_user_by_id
+)
+from auth import (
+    hash_password, verify_password, create_access_token, decode_access_token,
+    get_current_user, get_current_user_optional
+)
 from camera_manager import camera_manager
 from discord_notifier import send_discord_notification, send_discord_notification_detailed
 from websocket_manager import ws_manager
@@ -33,8 +40,8 @@ load_dotenv()
 # Initialize FastAPI App
 app = FastAPI(
     title="AI CCTV Monitoring Sentinel System",
-    description="Real-Time CCTV Person Detection, Tracking, WebSockets, Redirects & Discord Alerts",
-    version="2.1.0"
+    description="Real-Time CCTV Person Detection, Tracking, Auth & Security System",
+    version="2.2.0"
 )
 
 # Mount Screenshots Static Directory
@@ -66,13 +73,111 @@ class SettingsRequest(BaseModel):
     discord_webhook_url: Optional[str] = None
     camera_name: Optional[str] = None
 
+class RegisterRequest(BaseModel):
+    username: str
+    email: str
+    password: str
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
 
 # ============================================================
-# 1. WEB DASHBOARD ROUTE
+# 1. AUTHENTICATION & USER MANAGEMENT ENDPOINTS
+# ============================================================
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    """Renders the sleek Dark HUD Login & Registration page."""
+    user = await get_current_user_optional(request)
+    if user:
+        return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+    return templates.TemplateResponse(request=request, name="login.html")
+
+
+@app.post("/api/register")
+async def register(req: RegisterRequest, response: Response):
+    """Registers a new user account with hashed password and returns an auth session cookie."""
+    username = req.username.strip()
+    email = req.email.strip().lower()
+    password = req.password
+
+    if not username or len(username) < 3:
+        return JSONResponse({"success": False, "error": "Username must be at least 3 characters long."}, status_code=400)
+    if not email or "@" not in email:
+        return JSONResponse({"success": False, "error": "Please provide a valid email address."}, status_code=400)
+    if not password or len(password) < 6:
+        return JSONResponse({"success": False, "error": "Password must be at least 6 characters long."}, status_code=400)
+
+    if get_user_by_username(username):
+        return JSONResponse({"success": False, "error": f"Username '{username}' is already taken. Please choose another."}, status_code=400)
+    if get_user_by_email(email):
+        return JSONResponse({"success": False, "error": f"Email '{email}' is already registered. Please log in or use another email."}, status_code=400)
+
+    pwd_hash = hash_password(password)
+    user_id = create_user(username=username, email=email, password_hash=pwd_hash, role="user")
+    
+    token_payload = {"sub": str(user_id), "username": username, "email": email, "role": "user"}
+    token = create_access_token(token_payload)
+
+    res = JSONResponse({"success": True, "message": "Account created successfully!", "user": token_payload, "token": token})
+    res.set_cookie(key="access_token", value=f"Bearer {token}", httponly=True, max_age=7*24*3600, samesite="lax")
+    return res
+
+
+@app.post("/api/login")
+async def login(req: LoginRequest, response: Response):
+    """Authenticates username/email & password and sets access token session cookie."""
+    identity = req.username.strip()
+    password = req.password
+
+    if not identity or not password:
+        return JSONResponse({"success": False, "error": "Username/email and password are required."}, status_code=400)
+
+    user = get_user_by_username(identity)
+    if not user:
+        user = get_user_by_email(identity)
+
+    if not user or not verify_password(password, user["password_hash"]):
+        return JSONResponse({"success": False, "error": "Invalid username/email or password. Please verify your credentials."}, status_code=401)
+
+    token_payload = {
+        "sub": str(user["id"]),
+        "username": user["username"],
+        "email": user["email"],
+        "role": user["role"]
+    }
+    token = create_access_token(token_payload)
+
+    res = JSONResponse({"success": True, "message": "Authentication successful!", "user": token_payload, "token": token})
+    res.set_cookie(key="access_token", value=f"Bearer {token}", httponly=True, max_age=7*24*3600, samesite="lax")
+    return res
+
+
+@app.post("/api/logout")
+async def logout(response: Response):
+    """Clears authentication session cookie."""
+    res = JSONResponse({"success": True, "message": "Logged out successfully."})
+    res.delete_cookie(key="access_token")
+    return res
+
+
+@app.get("/api/me")
+async def get_me(current_user: dict = Depends(get_current_user)):
+    """Returns currently authenticated user profile."""
+    return {"success": True, "user": current_user}
+
+
+# ============================================================
+# 2. WEB DASHBOARD ROUTE (PROTECTED)
 # ============================================================
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
-    return templates.TemplateResponse(request=request, name="index.html")
+    """Protected web dashboard route: Redirects to /login if unauthenticated."""
+    user = await get_current_user_optional(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+    return templates.TemplateResponse(request=request, name="index.html", context={"user": user})
 
 
 # ============================================================

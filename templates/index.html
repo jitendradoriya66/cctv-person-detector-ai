@@ -948,9 +948,17 @@
                 <span id="systemEnvBadgeText">SENTINEL OPTIMIZED</span>
             </div>
 
+            <div class="hud-badge" style="background: rgba(99, 102, 241, 0.15); border-color: rgba(99, 102, 241, 0.4); color: #A5B4FC;">
+                <i data-lucide="user-check" style="width: 12px; height: 12px;"></i>
+                <span>{{ user.username.upper() }} ({{ user.role.upper() }})</span>
+            </div>
 
             <button class="btn btn-outline" style="padding: 5px 10px; font-size: 0.72rem;" onclick="openSettingsModal()">
                 <i data-lucide="settings" style="width: 13px; height: 13px;"></i> Settings
+            </button>
+
+            <button class="btn btn-danger" style="padding: 5px 10px; font-size: 0.72rem;" onclick="handleLogout()">
+                <i data-lucide="log-out" style="width: 13px; height: 13px;"></i> Logout
             </button>
         </div>
     </header>
@@ -1882,6 +1890,18 @@
                 document.getElementById('wsText').innerText = 'WS OFFLINE';
                 setTimeout(connectWebSocket, 3000);
             };
+        }
+
+        async function handleLogout() {
+            try {
+                showToast('Logging out of Sentinel session...', 'info');
+                await fetch('/api/logout', { method: 'POST' });
+                setTimeout(() => {
+                    window.location.href = '/login';
+                }, 400);
+            } catch (err) {
+                window.location.href = '/login';
+            }
         }
 
         connectWebSocket();

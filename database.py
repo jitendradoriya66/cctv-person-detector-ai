@@ -50,9 +50,73 @@ def init_db():
             value TEXT NOT NULL
         )
     """)
+
+    # Users table for Authentication & Authorization
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            role TEXT DEFAULT 'user',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
     
     conn.commit()
+
+    # Seed default admin user if no users exist
+    cursor.execute("SELECT COUNT(*) FROM users")
+    if cursor.fetchone()[0] == 0:
+        from auth import hash_password
+        default_admin_hash = hash_password("admin123")
+        cursor.execute(
+            "INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)",
+            ("admin", "admin@sentinel.ai", default_admin_hash, "admin")
+        )
+        conn.commit()
+
     conn.close()
+
+def create_user(username: str, email: str, password_hash: str, role: str = "user") -> int:
+    """Creates a new user record in SQLite database."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)",
+        (username.strip(), email.strip().lower(), password_hash, role)
+    )
+    user_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return user_id
+
+def get_user_by_username(username: str) -> Optional[Dict[str, Any]]:
+    """Retrieves user record by username."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE LOWER(username) = LOWER(?)", (username.strip(),))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
+    """Retrieves user record by email."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE LOWER(email) = LOWER(?)", (email.strip(),))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
+    """Retrieves user record by user ID."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
 
 def add_event(camera_name: str, track_id: int, object_class: str, confidence: float, screenshot_filename: str, screenshot_path: str, source_type: str = "STREAM") -> int:
     conn = get_db_connection()
