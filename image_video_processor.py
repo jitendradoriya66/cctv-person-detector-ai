@@ -73,9 +73,9 @@ class ImageVideoProcessor:
         if img is None:
             return {"success": False, "error": "Could not decode uploaded image file."}
 
-        # Downscale ultra high-res images to max 1280px to prevent Render OOM / memory timeouts
+        # Downscale ultra high-res images to max 640px to prevent Render memory/CPU timeouts
         h, w = img.shape[:2]
-        max_dim = 1280
+        max_dim = 640
         if max(h, w) > max_dim:
             scale = max_dim / float(max(h, w))
             img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
@@ -155,20 +155,24 @@ class ImageVideoProcessor:
                 source_type="IMAGE"
             )
 
-            # Optional Discord notification
+            # Non-blocking Discord notification in background thread
             target_webhook = webhook_url or get_setting("DISCORD_WEBHOOK_URL", os.getenv("DISCORD_WEBHOOK_URL", ""))
             if target_webhook:
-                try:
-                    send_discord_notification(
-                        image_path=filepath,
-                        track_id=1,
-                        camera_name=camera_name,
-                        object_class=f"Detected {person_count} Persons, {vehicle_count} Vehicles",
-                        confidence=max_confidence,
-                        webhook_url=target_webhook
-                    )
-                except Exception as err:
-                    logger.warning(f"Discord notification error: {err}")
+                import threading
+                def _bg_discord_send():
+                    try:
+                        send_discord_notification(
+                            image_path=filepath,
+                            track_id=1,
+                            camera_name=camera_name,
+                            object_class=f"Detected {person_count} Persons, {vehicle_count} Vehicles",
+                            confidence=max_confidence,
+                            webhook_url=target_webhook
+                        )
+                    except Exception as err:
+                        logger.warning(f"Background Discord notification error: {err}")
+                threading.Thread(target=_bg_discord_send, daemon=True).start()
+
 
             # Broadcast completion & event over WebSocket
             try:
@@ -270,8 +274,16 @@ class ImageVideoProcessor:
             if (current_frame_idx - 1) % frame_step != 0:
                 continue
 
+            # Downscale frame to max 640px for fast tracking on Render CPU
+            h, w = frame.shape[:2]
+            max_dim = 640
+            if max(h, w) > max_dim:
+                scale = max_dim / float(max(h, w))
+                frame = cv2.resize(frame, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+
             sampled_frame_count += 1
             pct = int((sampled_frame_count / total_sampled_frames) * 100)
+
 
             # Run multi-class tracking on sampled frame using ByteTrack
             try:
