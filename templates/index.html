@@ -1165,7 +1165,7 @@
                         <i data-lucide="activity" style="color: var(--cyan-primary); width: 16px; height: 16px;"></i>
                         Recent Alerts
                     </div>
-                    <button class="btn btn-outline" style="padding: 4px 8px; font-size: 0.7rem;" onclick="promptClearAllEvents()">
+                    <button id="btnClearAllEvents" class="btn btn-outline" style="padding: 4px 8px; font-size: 0.7rem; {% if user.role != 'admin' %}display:none;{% endif %}" onclick="promptClearAllEvents()">
                         Clear All
                     </button>
                 </div>
@@ -1277,6 +1277,7 @@
             if (badgeEl) badgeEl.innerText = 'AWS OPTIMIZED';
         }
 
+        window.currentUserRole = "{{ user.role }}";
         let currentActiveMode = 'IMAGE';
         let latestDetectionResult = null;
         let webcamInterval = null;
@@ -1683,10 +1684,15 @@
                     const card = document.createElement('div');
                     card.className = 'gallery-card';
                     card.onclick = () => openImageModal(`/screenshots/${ev.screenshot_filename}`, `Track #${ev.track_id} | ${ev.datetime_str}`, ev.id);
-                    card.innerHTML = `
+                    
+                    const deleteBtnHtml = (window.currentUserRole === 'admin') ? `
                         <button class="card-delete-btn" title="Delete event" onclick="event.stopPropagation(); promptDeleteEvent(${ev.id})">
                             <i data-lucide="trash-2" style="width:13px; height:13px;"></i>
                         </button>
+                    ` : '';
+
+                    card.innerHTML = `
+                        ${deleteBtnHtml}
                         <img class="gallery-card-img" src="/screenshots/${ev.screenshot_filename}" alt="Event">
                         <div class="gallery-card-body">
                             <div class="gallery-card-header">
@@ -1750,24 +1756,44 @@
         }
 
         function promptDeleteEvent(eventId) {
+            if (window.currentUserRole !== 'admin') {
+                showToast('Permission Denied: Only administrators have permission to delete recorded detection evidence.', 'error', 'ACCESS RESTRICTED');
+                return;
+            }
             showConfirmation({
                 title: 'DELETE EVENT LOG',
                 message: `Are you sure you want to permanently delete Event #${eventId}?`,
                 onConfirm: async () => {
-                    await fetch(`/api/events/${eventId}`, { method: 'DELETE' });
+                    const res = await fetch(`/api/events/${eventId}`, { method: 'DELETE' });
+                    if (!res.ok) {
+                        const data = await res.json();
+                        showToast(data.detail || 'Delete failed: Permission Denied.', 'error');
+                        return;
+                    }
                     if (currentViewingEventId === eventId) closeImageModal();
                     loadEventsGallery(currentPage);
+                    showToast(`Event #${eventId} deleted successfully.`, 'success');
                 }
             });
         }
 
         function promptClearAllEvents() {
+            if (window.currentUserRole !== 'admin') {
+                showToast('Permission Denied: Only administrators have permission to delete recorded detection evidence.', 'error', 'ACCESS RESTRICTED');
+                return;
+            }
             showConfirmation({
                 title: 'CLEAR ALL EVENTS',
                 message: '⚠️ DANGER: Are you sure you want to permanently delete ALL recorded detection events?',
                 onConfirm: async () => {
-                    await fetch('/api/events', { method: 'DELETE' });
+                    const res = await fetch('/api/events', { method: 'DELETE' });
+                    if (!res.ok) {
+                        const data = await res.json();
+                        showToast(data.detail || 'Clear failed: Permission Denied.', 'error');
+                        return;
+                    }
                     loadEventsGallery(1);
+                    showToast('All detection evidence logs cleared successfully.', 'success');
                 }
             });
         }
@@ -1778,7 +1804,7 @@
             document.getElementById('modalImg').src = url;
             document.getElementById('modalTitle').innerText = title || 'DETECTION EVIDENCE';
             const delBtn = document.getElementById('modalDeleteBtn');
-            if (eventId) {
+            if (eventId && window.currentUserRole === 'admin') {
                 delBtn.style.display = 'inline-flex';
             } else {
                 delBtn.style.display = 'none';
@@ -1892,16 +1918,22 @@
             };
         }
 
-        async function handleLogout() {
-            try {
-                showToast('Logging out of Sentinel session...', 'info');
-                await fetch('/api/logout', { method: 'POST' });
-                setTimeout(() => {
-                    window.location.href = '/login';
-                }, 400);
-            } catch (err) {
-                window.location.href = '/login';
-            }
+        function handleLogout() {
+            showConfirmation({
+                title: 'LOGOUT CONFIRMATION',
+                message: 'Are you sure you want to end your current Sentinel AI session and log out?',
+                onConfirm: async () => {
+                    try {
+                        showToast('Logging out of Sentinel session...', 'info');
+                        await fetch('/api/logout', { method: 'POST' });
+                        setTimeout(() => {
+                            window.location.href = '/login';
+                        }, 400);
+                    } catch (err) {
+                        window.location.href = '/login';
+                    }
+                }
+            });
         }
 
         connectWebSocket();
