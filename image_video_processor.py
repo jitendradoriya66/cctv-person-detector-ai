@@ -62,7 +62,8 @@ class ImageVideoProcessor:
         model: YOLO,
         confidence: float = 0.15,
         camera_name: str = "Uploaded Image",
-        webhook_url: Optional[str] = None
+        webhook_url: Optional[str] = None,
+        user_id: Optional[int] = 1
     ) -> Dict[str, Any]:
         """
         Processes a single uploaded image with complete multi-class detection & annotation.
@@ -153,7 +154,8 @@ class ImageVideoProcessor:
                 confidence=max_confidence,
                 screenshot_filename=filename,
                 screenshot_path=filepath,
-                source_type="IMAGE"
+                source_type="IMAGE",
+                user_id=user_id
             )
 
             # Non-blocking Discord notification in background thread
@@ -226,7 +228,8 @@ class ImageVideoProcessor:
         sample_interval_sec: float = 1.0,
         confidence: float = 0.15,
         camera_name: str = "Uploaded Video",
-        webhook_url: Optional[str] = None
+        webhook_url: Optional[str] = None,
+        user_id: Optional[int] = 1
     ) -> Dict[str, Any]:
         """
         Processes video file with frame sampling & ByteTrack tracking:
@@ -380,7 +383,8 @@ class ImageVideoProcessor:
                     confidence=conf,
                     screenshot_filename=event_filename,
                     screenshot_path=event_filepath,
-                    source_type="VIDEO"
+                    source_type="VIDEO",
+                    user_id=user_id
                 )
 
                 event_data = {

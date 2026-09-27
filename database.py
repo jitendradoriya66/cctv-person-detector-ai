@@ -34,13 +34,18 @@ def init_db():
         )
     """)
     
-    # Check if source_type column exists for existing database upgrades
+    # Check if source_type and user_id columns exist for existing database upgrades
     cursor.execute("PRAGMA table_info(events)")
     columns = [col[1] for col in cursor.fetchall()]
     if "source_type" not in columns:
         try:
             cursor.execute("ALTER TABLE events ADD COLUMN source_type TEXT DEFAULT 'STREAM'")
-        except Exception as e:
+        except Exception:
+            pass
+    if "user_id" not in columns:
+        try:
+            cursor.execute("ALTER TABLE events ADD COLUMN user_id INTEGER DEFAULT 1")
+        except Exception:
             pass
 
     # Settings table
@@ -118,15 +123,26 @@ def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
     conn.close()
     return dict(row) if row else None
 
-def add_event(camera_name: str, track_id: int, object_class: str, confidence: float, screenshot_filename: str, screenshot_path: str, source_type: str = "STREAM") -> int:
+def add_event(
+    camera_name: str,
+    track_id: int,
+    object_class: str,
+    confidence: float,
+    screenshot_filename: str,
+    screenshot_path: str,
+    source_type: str = "STREAM",
+    user_id: Optional[int] = 1
+) -> int:
+    """Records detection event with owner user_id."""
     conn = get_db_connection()
     cursor = conn.cursor()
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    target_user_id = user_id if user_id is not None else 1
     
     cursor.execute("""
-        INSERT INTO events (datetime_str, camera_name, track_id, object_class, confidence, screenshot_filename, screenshot_path, source_type)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (now_str, camera_name, track_id, object_class, round(confidence, 2), screenshot_filename, screenshot_path, source_type))
+        INSERT INTO events (datetime_str, camera_name, track_id, object_class, confidence, screenshot_filename, screenshot_path, source_type, user_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (now_str, camera_name, track_id, object_class, round(confidence, 2), screenshot_filename, screenshot_path, source_type, target_user_id))
     
     event_id = cursor.lastrowid
     conn.commit()
@@ -138,7 +154,14 @@ def add_event(camera_name: str, track_id: int, object_class: str, confidence: fl
     
     return event_id
 
-def get_events(limit: int = 50, offset: int = 0, camera_name: Optional[str] = None, object_class: Optional[str] = None) -> List[Dict[str, Any]]:
+def get_events(
+    limit: int = 50,
+    offset: int = 0,
+    camera_name: Optional[str] = None,
+    object_class: Optional[str] = None,
+    user_id: Optional[int] = None,
+    user_role: Optional[str] = None
+) -> List[Dict[str, Any]]:
     conn = get_db_connection()
     cursor = conn.cursor()
     
@@ -146,6 +169,10 @@ def get_events(limit: int = 50, offset: int = 0, camera_name: Optional[str] = No
     params = []
     conditions = []
     
+    if user_role != "admin" and user_id is not None:
+        conditions.append("user_id = ?")
+        params.append(user_id)
+
     if camera_name:
         conditions.append("camera_name = ?")
         params.append(camera_name)
@@ -166,8 +193,15 @@ def get_events(limit: int = 50, offset: int = 0, camera_name: Optional[str] = No
     conn.close()
     return events
 
-def get_events_paginated(page: int = 1, limit: int = 12, camera_name: Optional[str] = None, object_class: Optional[str] = None) -> Dict[str, Any]:
-    cache_key = f"events_p{page}_l{limit}_c{camera_name or 'all'}_o{object_class or 'all'}"
+def get_events_paginated(
+    page: int = 1,
+    limit: int = 12,
+    camera_name: Optional[str] = None,
+    object_class: Optional[str] = None,
+    user_id: Optional[int] = None,
+    user_role: Optional[str] = None
+) -> Dict[str, Any]:
+    cache_key = f"events_p{page}_l{limit}_c{camera_name or 'all'}_o{object_class or 'all'}_u{user_id or 'all'}_r{user_role or 'user'}"
     cached_val = redis_cache.get_json(cache_key)
     if cached_val:
         return cached_val
@@ -179,6 +213,10 @@ def get_events_paginated(page: int = 1, limit: int = 12, camera_name: Optional[s
     params = []
     conditions = []
     
+    if user_role != "admin" and user_id is not None:
+        conditions.append("user_id = ?")
+        params.append(user_id)
+
     if camera_name:
         conditions.append("camera_name = ?")
         params.append(camera_name)
@@ -215,7 +253,7 @@ def get_events_paginated(page: int = 1, limit: int = 12, camera_name: Optional[s
         "total_pages": total_pages
     }
     
-    redis_cache.set_json(cache_key, result, ttl_sec=30)
+    redis_cache.set_json(cache_key, result, ttl_sec=15)
     return result
 
 def delete_event(event_id: int) -> bool:
@@ -242,26 +280,36 @@ def clear_all_events() -> bool:
     redis_cache.delete_prefix("stats")
     return True
 
-def get_stats() -> Dict[str, Any]:
-    cached_stats = redis_cache.get_json("stats")
+def get_stats(user_id: Optional[int] = None, user_role: Optional[str] = None) -> Dict[str, Any]:
+    cache_key = f"stats_u{user_id or 'all'}_r{user_role or 'user'}"
+    cached_stats = redis_cache.get_json(cache_key)
     if cached_stats:
         return cached_stats
 
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute("SELECT COUNT(*) FROM events")
+    where_clause = ""
+    params = []
+    if user_role != "admin" and user_id is not None:
+        where_clause = " WHERE user_id = ?"
+        params.append(user_id)
+
+    cursor.execute(f"SELECT COUNT(*) FROM events{where_clause}", params)
     total_events = cursor.fetchone()[0]
     
     today_str = datetime.now().strftime("%Y-%m-%d")
-    cursor.execute("SELECT COUNT(*) FROM events WHERE datetime_str LIKE ?", (f"{today_str}%",))
+    today_where = f" WHERE datetime_str LIKE ?" if not where_clause else f"{where_clause} AND datetime_str LIKE ?"
+    today_params = list(params) + [f"{today_str}%"]
+    cursor.execute(f"SELECT COUNT(*) FROM events{today_where}", today_params)
     today_events = cursor.fetchone()[0]
     
-    cursor.execute("SELECT datetime_str FROM events ORDER BY id DESC LIMIT 1")
+    cursor.execute(f"SELECT datetime_str FROM events{where_clause} ORDER BY id DESC LIMIT 1", params)
     last_row = cursor.fetchone()
     last_detection = last_row[0] if last_row else "None"
     
-    cursor.execute("SELECT COUNT(*) FROM events WHERE object_class = 'person'")
+    person_where = f" WHERE object_class = 'person'" if not where_clause else f"{where_clause} AND object_class = 'person'"
+    cursor.execute(f"SELECT COUNT(*) FROM events{person_where}", params)
     persons_count = cursor.fetchone()[0]
     
     conn.close()
@@ -271,7 +319,7 @@ def get_stats() -> Dict[str, Any]:
         "persons_count": persons_count,
         "last_detection": last_detection
     }
-    redis_cache.set_json("stats", result, ttl_sec=15)
+    redis_cache.set_json(cache_key, result, ttl_sec=15)
     return result
 
 def get_setting(key: str, default: str = "") -> str:

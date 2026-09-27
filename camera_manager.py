@@ -560,7 +560,7 @@ class CameraManager:
                 self._create_placeholder_frame("AI CCTV Camera System Ready")
             return self.current_frame_bytes
 
-    def process_image(self, image_bytes: bytes, confidence: float = 0.50, camera_name: str = "Uploaded Image", webhook_url: Optional[str] = None) -> Dict[str, Any]:
+    def process_image(self, image_bytes: bytes, confidence: float = 0.50, camera_name: str = "Uploaded Image", webhook_url: Optional[str] = None, user_id: Optional[int] = 1) -> Dict[str, Any]:
         """Wrapper for offline image processing using YOLO."""
         model = self.get_model()
         if model is None:
@@ -570,10 +570,11 @@ class CameraManager:
             model=model,
             confidence=confidence,
             camera_name=camera_name,
-            webhook_url=webhook_url
+            webhook_url=webhook_url,
+            user_id=user_id
         )
 
-    def process_video(self, video_bytes: bytes, sample_interval_sec: float = 1.0, confidence: float = 0.50, camera_name: str = "Uploaded Video", webhook_url: Optional[str] = None) -> Dict[str, Any]:
+    def process_video(self, video_bytes: bytes, sample_interval_sec: float = 1.0, confidence: float = 0.50, camera_name: str = "Uploaded Video", webhook_url: Optional[str] = None, user_id: Optional[int] = 1) -> Dict[str, Any]:
         """Wrapper for sampled video processing using YOLO and ByteTrack."""
         model = self.get_model()
         if model is None:
@@ -584,7 +585,8 @@ class CameraManager:
             sample_interval_sec=sample_interval_sec,
             confidence=confidence,
             camera_name=camera_name,
-            webhook_url=webhook_url
+            webhook_url=webhook_url,
+            user_id=user_id
         )
 
     def get_status(self) -> Dict[str, Any]:

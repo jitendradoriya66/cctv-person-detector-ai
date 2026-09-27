@@ -356,11 +356,12 @@ async def process_browser_frame(
 async def upload_image(
     file: UploadFile = File(...),
     confidence: float = Form(0.15),
-    camera_name: str = Form("Image Upload Analysis")
+    camera_name: str = Form("Image Upload Analysis"),
+    current_user: dict = Depends(get_current_user)
 ):
     """
     API Endpoint for static image detection:
-    Uploads an image file, runs YOLO detection, logs database event,
+    Uploads an image file, runs YOLO detection, logs database event for current user,
     triggers optional Discord alert, and returns annotated result URL.
     """
     try:
@@ -368,11 +369,13 @@ async def upload_image(
         if not contents or len(contents) == 0:
             return JSONResponse({"success": False, "error": "Uploaded image file is empty."}, status_code=400)
 
+        user_id = int(current_user.get("sub", 1))
         result = await run_in_threadpool(
             camera_manager.process_image,
             contents,
             confidence=confidence,
-            camera_name=camera_name
+            camera_name=camera_name,
+            user_id=user_id
         )
         if not result.get("success", False):
             return JSONResponse({"success": False, "error": result.get("error", "Image processing failed.")}, status_code=400)
@@ -387,25 +390,28 @@ async def upload_video(
     file: UploadFile = File(...),
     sample_interval_sec: float = Form(1.0),
     confidence: float = Form(0.15),
-    camera_name: str = Form("Video Upload Analysis")
+    camera_name: str = Form("Video Upload Analysis"),
+    current_user: dict = Depends(get_current_user)
 ):
 
     """
     API Endpoint for sampled video file detection & ByteTrack tracking:
-    Uploads a video, samples frames (e.g. 1 frame/sec for lightweight CPU compute),
-    tracks Person IDs, captures evidence screenshots, and records database events.
+    Uploads a video, samples frames, tracks Person IDs, captures evidence screenshots,
+    and records database events tied to current user.
     """
     try:
         contents = await file.read()
         if not contents or len(contents) == 0:
             return JSONResponse({"success": False, "error": "Uploaded video file is empty."}, status_code=400)
 
+        user_id = int(current_user.get("sub", 1))
         result = await run_in_threadpool(
             camera_manager.process_video,
             contents,
             sample_interval_sec=sample_interval_sec,
             confidence=confidence,
-            camera_name=camera_name
+            camera_name=camera_name,
+            user_id=user_id
         )
         if not result.get("success", False):
             return JSONResponse({"success": False, "error": result.get("error", "Video processing failed.")}, status_code=400)
@@ -419,40 +425,65 @@ async def upload_video(
 # 6. SYSTEM STATUS & METRICS API
 # ============================================================
 @app.get("/api/status")
-async def get_system_status():
+async def get_system_status(request: Request):
+    user = await get_current_user_optional(request)
+    user_id = int(user["sub"]) if user else None
+    user_role = user.get("role") if user else None
+
     status_data = camera_manager.get_status()
-    db_stats = get_stats()
+    db_stats = get_stats(user_id=user_id, user_role=user_role)
     status_data["stats"] = db_stats
     return JSONResponse(status_data)
 
 
 # ============================================================
-# 7. DETECTION EVENTS APIs
+# 7. DETECTION EVENTS APIs (RBAC PROTECTED)
 # ============================================================
 @app.get("/api/events")
-async def list_events(page: Optional[int] = None, limit: int = 12, offset: int = 0, camera_name: Optional[str] = None):
+async def list_events(
+    page: Optional[int] = None,
+    limit: int = 12,
+    offset: int = 0,
+    camera_name: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    user_id = int(current_user.get("sub", 1))
+    user_role = current_user.get("role", "user")
+
     if page is not None:
-        paginated_data = get_events_paginated(page=page, limit=limit, camera_name=camera_name)
+        paginated_data = get_events_paginated(page=page, limit=limit, camera_name=camera_name, user_id=user_id, user_role=user_role)
         return JSONResponse(paginated_data)
     
     # If offset parameter is explicitly passed without page
     if offset > 0:
-        events = get_events(limit=limit, offset=offset, camera_name=camera_name)
+        events = get_events(limit=limit, offset=offset, camera_name=camera_name, user_id=user_id, user_role=user_role)
         return JSONResponse(events)
         
     # Default to page 1 paginated response
-    paginated_data = get_events_paginated(page=1, limit=limit, camera_name=camera_name)
+    paginated_data = get_events_paginated(page=1, limit=limit, camera_name=camera_name, user_id=user_id, user_role=user_role)
     return JSONResponse(paginated_data)
 
 @app.delete("/api/events/{event_id}")
-async def delete_single_event(event_id: int):
+async def delete_single_event(event_id: int, current_user: dict = Depends(get_current_user)):
+    """Deletes single event. Restricted to ADMIN users only."""
+    if current_user.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permission Denied: Only administrators have permission to delete recorded detection evidence."
+        )
     success = delete_event(event_id)
     if success:
         return {"status": "success", "message": f"Event {event_id} deleted."}
     raise HTTPException(status_code=404, detail="Event not found.")
 
 @app.delete("/api/events")
-async def clear_events():
+async def clear_events(current_user: dict = Depends(get_current_user)):
+    """Clears all events. Restricted to ADMIN users only."""
+    if current_user.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permission Denied: Only administrators have permission to delete recorded detection evidence."
+        )
     clear_all_events()
     return {"status": "success", "message": "All detection events cleared."}
 
