@@ -73,12 +73,13 @@ class ImageVideoProcessor:
         if img is None:
             return {"success": False, "error": "Could not decode uploaded image file."}
 
-        # Downscale ultra high-res images to max 640px to prevent Render memory/CPU timeouts
+        # Downscale ultra high-res images to max 480px to prevent Render memory/CPU timeouts
         h, w = img.shape[:2]
-        max_dim = 640
+        max_dim = 480
         if max(h, w) > max_dim:
             scale = max_dim / float(max(h, w))
             img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+
 
         # Broadcast start progress over WebSocket
         try:
@@ -274,12 +275,13 @@ class ImageVideoProcessor:
             if (current_frame_idx - 1) % frame_step != 0:
                 continue
 
-            # Downscale frame to max 640px for fast tracking on Render CPU
+            # Downscale frame to max 480px for fast tracking on Render CPU
             h, w = frame.shape[:2]
-            max_dim = 640
+            max_dim = 480
             if max(h, w) > max_dim:
                 scale = max_dim / float(max(h, w))
                 frame = cv2.resize(frame, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+
 
             sampled_frame_count += 1
             pct = int((sampled_frame_count / total_sampled_frames) * 100)

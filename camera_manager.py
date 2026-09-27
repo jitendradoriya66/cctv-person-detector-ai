@@ -35,10 +35,11 @@ class CameraManager:
     MJPEG frame generation, database logging, and Discord notifications.
     Fully thread-safe and resilient for cloud (Render) and local environments.
     """
-    def __init__(self, model_path: str = "yolo26n.pt", screenshot_dir: str = "screenshots"):
+    def __init__(self, model_path: str = "yolov8n.pt", screenshot_dir: str = "screenshots"):
         self.model_path = model_path
         self.screenshot_dir = screenshot_dir
         os.makedirs(self.screenshot_dir, exist_ok=True)
+
 
         self.model: Optional[YOLO] = None
         self._model_lock = threading.Lock()
