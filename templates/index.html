@@ -876,7 +876,7 @@
                     <div id="imageResultContainer" class="result-view-container" style="display: none; margin-top: 12px;">
                         <div id="imageLoader" class="loading-overlay" style="display: none;">
                             <div class="spinner"></div>
-                            <p style="font-size: 0.8rem; font-family: var(--font-mono); color: var(--cyan-primary);">RUNNING YOLO INFERENCE...</p>
+                            <p id="imageStatusText" style="font-size: 0.8rem; font-family: var(--font-mono); color: var(--cyan-primary);">RUNNING MULTI-OBJECT DETECTION...</p>
                         </div>
                         <img id="imageResultDisplay" class="result-img" src="" alt="Detection Result">
                     </div>
@@ -914,7 +914,10 @@
                     <div id="videoResultContainer" class="result-view-container" style="display: none; margin-top: 12px;">
                         <div id="videoLoader" class="loading-overlay" style="display: none;">
                             <div class="spinner"></div>
-                            <p style="font-size: 0.8rem; font-family: var(--font-mono); color: var(--cyan-primary);">SAMPLING & TRACKING WITH BYTETRACK...</p>
+                            <div style="width: 80%; max-width: 320px; background: rgba(0, 240, 255, 0.1); height: 8px; border-radius: 4px; border: 1px solid var(--border-color); overflow: hidden; margin-top: 4px;">
+                                <div id="videoProgressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, var(--cyan-primary), var(--emerald-accent)); transition: width 0.3s ease;"></div>
+                            </div>
+                            <p id="videoProgressText" style="font-size: 0.8rem; font-family: var(--font-mono); color: var(--cyan-primary); text-align: center; margin-top: 4px;">PROCESSING VIDEO... (0%)</p>
                         </div>
                         <img id="videoResultDisplay" class="result-img" src="" alt="Video Detection">
                     </div>
@@ -966,13 +969,14 @@
                     </div>
 
                     <div style="display: flex; gap: 8px;">
-                        <button class="btn btn-cyan" id="btnViewDetection" onclick="viewCurrentDetection()" disabled>
+                        <button class="btn btn-cyan" id="btnViewDetection" onclick="viewCurrentDetection()">
                             <i data-lucide="eye" style="width: 13px; height: 13px;"></i> View Detection
                         </button>
-                        <button class="btn btn-outline" id="btnSendAlert" onclick="sendDiscordAlert()" disabled>
+                        <button class="btn btn-outline" id="btnSendAlert" onclick="sendDiscordAlert()">
                             <i data-lucide="send" style="width: 13px; height: 13px;"></i> Discord Alert
                         </button>
                     </div>
+
                 </div>
 
             </div>
@@ -1124,7 +1128,7 @@
 
             const formData = new FormData();
             formData.append('file', file);
-            formData.append('confidence', 0.50);
+            formData.append('confidence', 0.25);
             formData.append('camera_name', 'Image Analysis');
 
             const container = document.getElementById('imageResultContainer');
@@ -1139,7 +1143,13 @@
                     method: 'POST',
                     body: formData
                 });
-                const data = await res.json();
+                const text = await res.text();
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch(e) {
+                    data = { success: false, error: 'Server returned non-JSON response: ' + text.substring(0, 150) };
+                }
                 loader.style.display = 'none';
 
                 if (data.success) {
@@ -1164,7 +1174,7 @@
             const formData = new FormData();
             formData.append('file', file);
             formData.append('sample_interval_sec', sampleInterval);
-            formData.append('confidence', 0.50);
+            formData.append('confidence', 0.25);
             formData.append('camera_name', 'Video Analysis');
 
             const container = document.getElementById('videoResultContainer');
@@ -1179,7 +1189,13 @@
                     method: 'POST',
                     body: formData
                 });
-                const data = await res.json();
+                const text = await res.text();
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch(e) {
+                    data = { success: false, error: 'Server returned non-JSON response: ' + text.substring(0, 150) };
+                }
                 loader.style.display = 'none';
 
                 if (data.success) {
@@ -1279,10 +1295,24 @@
 
         function viewCurrentDetection() {
             if (latestDetectionResult) {
-                const imgUrl = latestDetectionResult.annotated_image_url || latestDetectionResult.events?.[0]?.screenshot_url;
+                const imgUrl = latestDetectionResult.annotated_image_url || latestDetectionResult.events?.[0]?.screenshot_url || latestDetectionResult.annotated_image;
                 const evId = latestDetectionResult.event_id || latestDetectionResult.events?.[0]?.id;
-                if (imgUrl) openImageModal(imgUrl, 'DETECTION OUTPUT', evId);
+                if (imgUrl) {
+                    openImageModal(imgUrl, 'DETECTION OUTPUT', evId);
+                    return;
+                }
             }
+            const webcamImg = document.getElementById('webcamAnnotatedDisplay');
+            if (webcamImg && webcamImg.src && webcamImg.style.display !== 'none') {
+                openImageModal(webcamImg.src, 'WEBCAM DETECTION FEED');
+                return;
+            }
+            const firstCard = document.querySelector('.gallery-card-img');
+            if (firstCard && firstCard.src) {
+                openImageModal(firstCard.src, 'LATEST RECORDED EVIDENCE');
+                return;
+            }
+            alert('No detection image available yet. Upload an image/video or start the live webcam.');
         }
 
         function sendDiscordAlert() {
@@ -1292,14 +1322,21 @@
                 onConfirm: async () => {
                     try {
                         const res = await fetch('/api/test-discord', { method: 'POST' });
-                        const data = await res.json();
+                        const text = await res.text();
+                        let data;
+                        try {
+                            data = JSON.parse(text);
+                        } catch(e) {
+                            data = { status: 'error', message: 'Server returned non-JSON response: ' + text.substring(0, 150) };
+                        }
                         alert(data.message);
                     } catch (err) {
-                        alert('Alert request failed.');
+                        alert('Alert request failed: ' + err.message);
                     }
                 }
             });
         }
+
 
         // Gallery & Full Backend Pagination Handled Here
         async function loadEventsGallery(page = 1) {
@@ -1491,6 +1528,27 @@
                         document.getElementById('webcamAnnotatedDisplay').src = data.annotated_image;
                         document.getElementById('webcamAnnotatedDisplay').style.display = 'block';
                         updateResultsPanel(data.persons_count, 0.90, 1, data.annotated_image);
+                    } else if (data.type === 'PROCESSING_PROGRESS') {
+                        if (data.task === 'VIDEO') {
+                            const pct = data.progress_pct || 0;
+                            const bar = document.getElementById('videoProgressBar');
+                            const text = document.getElementById('videoProgressText');
+                            if (bar) bar.style.width = pct + '%';
+                            if (text) {
+                                text.innerText = data.status_text || `Processing Frame ${data.sampled_frame || 0}/${data.total_sampled || 0} (${pct}%) • ${data.persons_detected || 0} Persons, ${data.vehicles_detected || 0} Vehicles`;
+                            }
+                            if (data.latest_screenshot_url) {
+                                const display = document.getElementById('videoResultDisplay');
+                                if (display) display.src = data.latest_screenshot_url + '?t=' + Date.now();
+                            }
+                        } else if (data.task === 'IMAGE') {
+                            const text = document.getElementById('imageStatusText');
+                            if (text && data.status_text) text.innerText = data.status_text;
+                            if (data.latest_screenshot_url) {
+                                const display = document.getElementById('imageResultDisplay');
+                                if (display) display.src = data.latest_screenshot_url + '?t=' + Date.now();
+                            }
+                        }
                     }
                 } catch (e) {}
             };

@@ -60,8 +60,8 @@ class CameraManager:
         # Configuration parameters
         self.camera_source: Any = 0
         self.camera_name: str = "Entrance Camera"
-        self.confidence_threshold: float = 0.50
-        self.target_class_ids: List[int] = [0]  # COCO class 0 = person
+        self.confidence_threshold: float = 0.25
+        self.target_class_ids: List[int] = [0, 1, 2, 3, 5, 7, 24, 26, 28]  # Persons, Vehicles, Bags
 
         # Analytics & Stats
         self.alerted_ids = set()

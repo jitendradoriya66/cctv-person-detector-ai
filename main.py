@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 
 from database import init_db, get_events, get_events_paginated, delete_event, clear_all_events, get_stats, get_setting, save_setting
 from camera_manager import camera_manager
-from discord_notifier import send_discord_notification
+from discord_notifier import send_discord_notification, send_discord_notification_detailed
 from websocket_manager import ws_manager
 
 # Configure Main Application Logger
@@ -250,7 +250,7 @@ async def process_browser_frame(
 @app.post("/api/upload-image")
 async def upload_image(
     file: UploadFile = File(...),
-    confidence: float = Form(0.50),
+    confidence: float = Form(0.25),
     camera_name: str = Form("Image Upload Analysis")
 ):
     """
@@ -258,26 +258,30 @@ async def upload_image(
     Uploads an image file, runs YOLO detection, logs database event,
     triggers optional Discord alert, and returns annotated result URL.
     """
-    contents = await file.read()
-    if not contents or len(contents) == 0:
-        raise HTTPException(status_code=400, detail="Uploaded image file is empty.")
+    try:
+        contents = await file.read()
+        if not contents or len(contents) == 0:
+            return JSONResponse({"success": False, "error": "Uploaded image file is empty."}, status_code=400)
 
-    result = await run_in_threadpool(
-        camera_manager.process_image,
-        contents,
-        confidence=confidence,
-        camera_name=camera_name
-    )
-    if not result.get("success", False):
-        raise HTTPException(status_code=400, detail=result.get("error", "Image processing failed."))
-    return JSONResponse(result)
+        result = await run_in_threadpool(
+            camera_manager.process_image,
+            contents,
+            confidence=confidence,
+            camera_name=camera_name
+        )
+        if not result.get("success", False):
+            return JSONResponse({"success": False, "error": result.get("error", "Image processing failed.")}, status_code=400)
+        return JSONResponse(result)
+    except Exception as err:
+        logger.error(f"Image upload exception: {err}", exc_info=True)
+        return JSONResponse({"success": False, "error": f"Server processing exception: {str(err)}"}, status_code=500)
 
 
 @app.post("/api/upload-video")
 async def upload_video(
     file: UploadFile = File(...),
     sample_interval_sec: float = Form(1.0),
-    confidence: float = Form(0.50),
+    confidence: float = Form(0.25),
     camera_name: str = Form("Video Upload Analysis")
 ):
     """
@@ -285,20 +289,24 @@ async def upload_video(
     Uploads a video, samples frames (e.g. 1 frame/sec for lightweight CPU compute),
     tracks Person IDs, captures evidence screenshots, and records database events.
     """
-    contents = await file.read()
-    if not contents or len(contents) == 0:
-        raise HTTPException(status_code=400, detail="Uploaded video file is empty.")
+    try:
+        contents = await file.read()
+        if not contents or len(contents) == 0:
+            return JSONResponse({"success": False, "error": "Uploaded video file is empty."}, status_code=400)
 
-    result = await run_in_threadpool(
-        camera_manager.process_video,
-        contents,
-        sample_interval_sec=sample_interval_sec,
-        confidence=confidence,
-        camera_name=camera_name
-    )
-    if not result.get("success", False):
-        raise HTTPException(status_code=400, detail=result.get("error", "Video processing failed."))
-    return JSONResponse(result)
+        result = await run_in_threadpool(
+            camera_manager.process_video,
+            contents,
+            sample_interval_sec=sample_interval_sec,
+            confidence=confidence,
+            camera_name=camera_name
+        )
+        if not result.get("success", False):
+            return JSONResponse({"success": False, "error": result.get("error", "Video processing failed.")}, status_code=400)
+        return JSONResponse(result)
+    except Exception as err:
+        logger.error(f"Video upload exception: {err}", exc_info=True)
+        return JSONResponse({"success": False, "error": f"Server processing exception: {str(err)}"}, status_code=500)
 
 
 # ============================================================
@@ -366,7 +374,7 @@ async def test_discord_notification():
     else:
         return {"status": "error", "message": "No screenshot available for test alert."}
 
-    sent = send_discord_notification(
+    sent, msg = send_discord_notification_detailed(
         image_path=sample_path,
         track_id=99,
         camera_name="Test Entrance Camera",
@@ -376,9 +384,10 @@ async def test_discord_notification():
     )
 
     if sent:
-        return {"status": "success", "message": "Test Discord alert sent successfully!"}
+        return {"status": "success", "message": msg}
     else:
-        return {"status": "error", "message": "Failed to send Discord alert. Check URL or network."}
+        return {"status": "error", "message": msg}
+
 
 
 # Run directly using uvicorn
