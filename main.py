@@ -250,7 +250,7 @@ async def process_browser_frame(
 @app.post("/api/upload-image")
 async def upload_image(
     file: UploadFile = File(...),
-    confidence: float = Form(0.25),
+    confidence: float = Form(0.15),
     camera_name: str = Form("Image Upload Analysis")
 ):
     """
@@ -281,9 +281,10 @@ async def upload_image(
 async def upload_video(
     file: UploadFile = File(...),
     sample_interval_sec: float = Form(1.0),
-    confidence: float = Form(0.25),
+    confidence: float = Form(0.15),
     camera_name: str = Form("Video Upload Analysis")
 ):
+
     """
     API Endpoint for sampled video file detection & ByteTrack tracking:
     Uploads a video, samples frames (e.g. 1 frame/sec for lightweight CPU compute),

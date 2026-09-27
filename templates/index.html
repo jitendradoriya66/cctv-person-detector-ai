@@ -506,6 +506,51 @@
             box-shadow: none !important;
         }
 
+        /* Dark HUD Toast Notifications */
+        #toastContainer {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+        }
+
+        .toast-card {
+            background: rgba(10, 16, 28, 0.96);
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--cyan-primary);
+            border-radius: 8px;
+            padding: 12px 16px;
+            min-width: 300px;
+            max-width: 440px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.85), 0 0 15px rgba(0, 240, 255, 0.25);
+            backdrop-filter: blur(16px);
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            pointer-events: auto;
+            animation: toastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            transition: all 0.3s ease;
+        }
+
+        .toast-card.success { border-left-color: var(--emerald-accent); box-shadow: 0 0 15px rgba(16, 185, 129, 0.3); }
+        .toast-card.error { border-left-color: #FF2E54; box-shadow: 0 0 15px rgba(255, 46, 84, 0.3); }
+        .toast-card.warning { border-left-color: #F59E0B; box-shadow: 0 0 15px rgba(245, 158, 11, 0.3); }
+
+        @keyframes toastSlideIn {
+            from { opacity: 0; transform: translateX(60px) scale(0.92); }
+            to { opacity: 1; transform: translateX(0) scale(1); }
+        }
+
+        @keyframes pulseLogo {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 15px var(--cyan-glow); }
+            50% { transform: scale(1.08); box-shadow: 0 0 25px var(--cyan-glow); }
+        }
+
+
         /* Results Metrics Panel */
         .results-bar {
             background: rgba(6, 11, 20, 0.8);
@@ -708,52 +753,84 @@
             color: white;
         }
 
-        /* Mobile Adjustments */
+        /* Mobile Adjustments & Responsive Layout Fixes */
         @media (max-width: 768px) {
             header {
                 padding: 10px 14px;
                 flex-direction: column;
                 align-items: stretch;
-                gap: 8px;
+                gap: 10px;
+            }
+            .brand-container {
+                justify-content: center;
+                text-align: center;
             }
             .header-badges {
-                justify-content: space-between;
+                justify-content: center;
+                gap: 8px;
                 width: 100%;
             }
+            .hud-badge {
+                font-size: 0.68rem;
+                padding: 3px 8px;
+            }
+            .mode-tabs-wrapper {
+                width: 100%;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+            }
+            .mode-tabs-wrapper::-webkit-scrollbar {
+                display: none;
+            }
+            .mode-tabs-bar {
+                display: flex;
+                width: max-content;
+                min-width: 100%;
+                gap: 6px;
+            }
+            .tab-btn {
+                flex: 1;
+                white-space: nowrap;
+                font-size: 0.78rem;
+                padding: 8px 12px;
+            }
             .container {
-                padding: 12px 12px;
-                gap: 12px;
+                padding: 10px 10px;
+                gap: 10px;
             }
             .stats-grid {
                 grid-template-columns: repeat(2, 1fr);
                 gap: 8px;
             }
             .stat-card {
-                padding: 10px 12px;
-                gap: 10px;
+                padding: 10px 10px;
+                gap: 8px;
             }
             .stat-value {
-                font-size: 1.15rem;
+                font-size: 1.1rem;
             }
             .drop-zone {
                 padding: 20px 12px;
-                min-height: 150px;
+                min-height: 140px;
             }
             .results-bar {
                 flex-direction: column;
                 align-items: stretch;
                 gap: 10px;
             }
-            .results-metrics {
-                justify-content: space-between;
+            .results-bar > div:last-child {
                 width: 100%;
+            }
+            .results-bar button {
+                flex: 1;
             }
             .gallery-grid {
                 grid-template-columns: repeat(2, 1fr);
                 gap: 8px;
             }
             .gallery-card-img {
-                height: 100px;
+                height: 105px;
             }
             .pagination-bar {
                 flex-direction: column;
@@ -761,9 +838,41 @@
                 gap: 8px;
             }
         }
+
+        @media (max-width: 480px) {
+            .brand-title {
+                font-size: 1.05rem;
+            }
+            .brand-subtitle {
+                font-size: 0.65rem;
+            }
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .gallery-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
     </style>
 </head>
 <body>
+
+    <!-- Sleek Dark HUD Page Initial Loader -->
+    <div id="pageInitialLoader" style="position: fixed; inset: 0; background: #050811; z-index: 99999; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; transition: opacity 0.4s ease, visibility 0.4s ease;">
+        <div class="brand-logo" style="width: 56px; height: 56px; animation: pulseLogo 1.5s infinite;">
+            <i data-lucide="shield-alert" style="width: 28px; height: 28px;"></i>
+        </div>
+        <div style="font-family: var(--font-hud); font-size: 1.1rem; font-weight: 700; color: var(--cyan-primary); letter-spacing: 0.08em; text-transform: uppercase;">
+            INITIALIZING AI SENTINEL HUB...
+        </div>
+        <div style="width: 220px; height: 4px; background: rgba(0, 240, 255, 0.15); border-radius: 2px; overflow: hidden; border: 1px solid var(--border-color);">
+            <div style="width: 60%; height: 100%; background: linear-gradient(90deg, var(--cyan-primary), var(--emerald-accent)); border-radius: 2px; animation: toastSlideIn 1s infinite alternate;"></div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toastContainer"></div>
 
     <!-- Hidden Video & Canvas elements for webcam snapshot capture -->
     <video id="webcamVideo" playsinline style="display:none;"></video>
@@ -789,8 +898,9 @@
 
             <div id="statusBadge" class="hud-badge status-ok">
                 <span class="status-dot"></span>
-                <span>RENDER OPTIMIZED</span>
+                <span id="systemEnvBadgeText">SENTINEL OPTIMIZED</span>
             </div>
+
 
             <button class="btn btn-outline" style="padding: 5px 10px; font-size: 0.72rem;" onclick="openSettingsModal()">
                 <i data-lucide="settings" style="width: 13px; height: 13px;"></i> Settings
@@ -921,7 +1031,19 @@
                         </div>
                         <img id="videoResultDisplay" class="result-img" src="" alt="Video Detection">
                     </div>
+
+                    <!-- Interactive Video Keyframe Thumbnail Strip -->
+                    <div id="videoKeyframeStripContainer" style="display: none; padding: 10px 12px; background: rgba(8, 14, 26, 0.75); border: 1px solid var(--border-color); border-radius: 8px; margin-top: 10px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                            <span style="font-size: 0.72rem; font-family: var(--font-mono); color: var(--cyan-primary); text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em;">
+                                <i data-lucide="layers" style="width: 12px; height: 12px; vertical-align: middle;"></i> Detected Event Keyframes (Click thumbnail to swap main view)
+                            </span>
+                            <span id="keyframeCounterBadge" class="hud-badge" style="font-size: 0.65rem; padding: 2px 6px;">0 Keyframes</span>
+                        </div>
+                        <div id="keyframeThumbnailsRow" style="display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin;"></div>
+                    </div>
                 </div>
+
 
                 <!-- 3. WEBCAM MODE -->
                 <div id="sectionWebcam" class="mode-section" style="display: none;">
@@ -1094,6 +1216,12 @@
     <script>
         lucide.createIcons();
 
+        // Environment Detection for Header Badge
+        if (window.location.hostname.includes('aws') || /^\d+\.\d+\.\d+\.\d+$/.test(window.location.hostname)) {
+            const badgeEl = document.getElementById('systemEnvBadgeText');
+            if (badgeEl) badgeEl.innerText = 'AWS OPTIMIZED';
+        }
+
         let currentActiveMode = 'IMAGE';
         let latestDetectionResult = null;
         let webcamInterval = null;
@@ -1103,6 +1231,124 @@
         const pageLimit = 12;
         let pendingConfirmAction = null;
         let currentViewingEventId = null;
+
+        // Sleek Dark HUD Toast Notification System
+        function showToast(message, type = 'info', title = null) {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            toast.className = `toast-card ${type}`;
+
+            let iconName = 'info';
+            let iconColor = 'var(--cyan-primary)';
+            let defaultTitle = 'SYSTEM NOTICE';
+
+            if (type === 'success') {
+                iconName = 'check-circle';
+                iconColor = 'var(--emerald-accent)';
+                defaultTitle = 'SUCCESS';
+            } else if (type === 'error') {
+                iconName = 'alert-triangle';
+                iconColor = '#FF2E54';
+                defaultTitle = 'ALERT ERROR';
+            } else if (type === 'warning') {
+                iconName = 'alert-circle';
+                iconColor = '#F59E0B';
+                defaultTitle = 'WARNING';
+            }
+
+            toast.innerHTML = `
+                <div style="color: ${iconColor}; margin-top: 2px;">
+                    <i data-lucide="${iconName}" style="width: 20px; height: 20px;"></i>
+                </div>
+                <div style="flex: 1;">
+                    <div style="font-family: var(--font-hud); font-size: 0.78rem; font-weight: 700; color: ${iconColor}; letter-spacing: 0.05em; text-transform: uppercase;">
+                        ${title || defaultTitle}
+                    </div>
+                    <div style="font-family: var(--font-mono); font-size: 0.82rem; color: var(--text-main); margin-top: 2px; line-height: 1.35;">
+                        ${message}
+                    </div>
+                </div>
+                <button onclick="this.parentElement.remove()" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.1rem; line-height: 1; padding: 0 2px;">&times;</button>
+            `;
+
+            container.appendChild(toast);
+            lucide.createIcons();
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(50px)';
+                setTimeout(() => toast.remove(), 300);
+            }, 4500);
+        }
+
+        function hideInitialPageLoader() {
+            const loader = document.getElementById('pageInitialLoader');
+            if (loader) {
+                loader.style.opacity = '0';
+                loader.style.visibility = 'hidden';
+                setTimeout(() => loader.remove(), 400);
+            }
+        }
+
+        // Render interactive keyframe thumbnails for video detection output
+        function renderKeyframeThumbnails(events) {
+            const container = document.getElementById('videoKeyframeStripContainer');
+            const row = document.getElementById('keyframeThumbnailsRow');
+            const badge = document.getElementById('keyframeCounterBadge');
+
+            if (!events || events.length === 0) {
+                if (container) container.style.display = 'none';
+                return;
+            }
+
+            if (container) container.style.display = 'block';
+            if (badge) badge.innerText = `${events.length} Keyframe${events.length > 1 ? 's' : ''}`;
+            if (row) row.innerHTML = '';
+
+            events.forEach((ev, idx) => {
+                const thumb = document.createElement('div');
+                thumb.className = `keyframe-thumb ${idx === 0 ? 'active' : ''}`;
+                thumb.style.cssText = `
+                    flex-shrink: 0;
+                    width: 76px;
+                    height: 54px;
+                    border-radius: 6px;
+                    overflow: hidden;
+                    border: 2px solid ${idx === 0 ? 'var(--cyan-primary)' : 'rgba(255, 255, 255, 0.15)'};
+                    box-shadow: ${idx === 0 ? '0 0 10px var(--cyan-glow)' : 'none'};
+                    cursor: pointer;
+                    position: relative;
+                    transition: all 0.2s ease;
+                `;
+                const imgUrl = ev.screenshot_url || `/screenshots/${ev.screenshot_filename}`;
+                thumb.onclick = () => {
+                    document.querySelectorAll('.keyframe-thumb').forEach(el => {
+                        el.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+                        el.style.boxShadow = 'none';
+                    });
+                    thumb.style.borderColor = 'var(--cyan-primary)';
+                    thumb.style.boxShadow = '0 0 12px var(--cyan-glow)';
+
+                    const display = document.getElementById('videoResultDisplay');
+                    if (display) display.src = imgUrl + '?t=' + Date.now();
+                    latestDetectionResult = {
+                        annotated_image_url: imgUrl,
+                        event_id: ev.id,
+                        person_count: ev.person_count || 1
+                    };
+                };
+
+                thumb.innerHTML = `
+                    <img src="${imgUrl}" style="width: 100%; height: 100%; object-fit: cover;">
+                    <div style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.8); font-size: 0.6rem; font-family: var(--font-mono); color: var(--cyan-primary); text-align: center; padding: 1px 0; font-weight: 700;">
+                        Track #${ev.track_id || idx + 1}
+                    </div>
+                `;
+                row.appendChild(thumb);
+            });
+        }
 
         function switchMode(mode) {
             currentActiveMode = mode;
@@ -1128,7 +1374,7 @@
 
             const formData = new FormData();
             formData.append('file', file);
-            formData.append('confidence', 0.25);
+            formData.append('confidence', 0.15);
             formData.append('camera_name', 'Image Analysis');
 
             const container = document.getElementById('imageResultContainer');
@@ -1157,12 +1403,13 @@
                     latestDetectionResult = data;
                     updateResultsPanel(data.person_count, data.max_confidence, 1, data.annotated_image_url);
                     loadEventsGallery(1);
+                    showToast('Image multi-object detection complete!', 'success');
                 } else {
-                    alert('Image analysis error: ' + (data.error || 'Unknown error'));
+                    showToast('Image analysis error: ' + (data.error || 'Unknown error'), 'error');
                 }
             } catch (err) {
                 loader.style.display = 'none';
-                alert('Upload failed: ' + err.message);
+                showToast('Upload failed: ' + err.message, 'error');
             }
         }
 
@@ -1174,7 +1421,7 @@
             const formData = new FormData();
             formData.append('file', file);
             formData.append('sample_interval_sec', sampleInterval);
-            formData.append('confidence', 0.25);
+            formData.append('confidence', 0.15);
             formData.append('camera_name', 'Video Analysis');
 
             const container = document.getElementById('videoResultContainer');
@@ -1201,16 +1448,18 @@
                 if (data.success) {
                     if (data.events && data.events.length > 0) {
                         display.src = data.events[0].screenshot_url + '?t=' + Date.now();
+                        renderKeyframeThumbnails(data.events);
                     }
                     latestDetectionResult = data;
                     updateResultsPanel(data.unique_persons_tracked, data.max_confidence, data.total_events_generated, data.events[0]?.screenshot_url);
                     loadEventsGallery(1);
+                    showToast(`Video tracking complete! Found ${data.unique_persons_tracked} unique person tracks.`, 'success');
                 } else {
-                    alert('Video analysis error: ' + (data.error || 'Unknown error'));
+                    showToast('Video analysis error: ' + (data.error || 'Unknown error'), 'error');
                 }
             } catch (err) {
                 loader.style.display = 'none';
-                alert('Upload failed: ' + err.message);
+                showToast('Upload failed: ' + err.message, 'error');
             }
         }
 
@@ -1233,10 +1482,16 @@
                 isWebcamActive = true;
 
                 webcamInterval = setInterval(captureWebcamFrame, 2000);
+                showToast('Live camera feed active & processing frames.', 'success');
             } catch (err) {
-                alert('Could not access camera: ' + err.message);
+                if (window.location.protocol !== 'https:' && !['localhost', '127.0.0.1'].includes(window.location.hostname)) {
+                    showToast('Browser Security Policy: Webcams are blocked by browsers on non-HTTPS HTTP URLs. Please deploy an SSL domain or test using Live Stream/Video mode.', 'warning', 'CAMERA BLOCKED BY BROWSER');
+                } else {
+                    showToast('Could not access camera: ' + err.message, 'error');
+                }
             }
         }
+
 
         function stopLocalWebcam() {
             const video = document.getElementById('webcamVideo');
@@ -1312,7 +1567,7 @@
                 openImageModal(firstCard.src, 'LATEST RECORDED EVIDENCE');
                 return;
             }
-            alert('No detection image available yet. Upload an image/video or start the live webcam.');
+            showToast('No detection image available yet. Upload an image/video or start the live webcam.', 'info');
         }
 
         function sendDiscordAlert() {
@@ -1329,9 +1584,9 @@
                         } catch(e) {
                             data = { status: 'error', message: 'Server returned non-JSON response: ' + text.substring(0, 150) };
                         }
-                        alert(data.message);
+                        showToast(data.message, data.status === 'success' ? 'success' : 'error');
                     } catch (err) {
-                        alert('Alert request failed: ' + err.message);
+                        showToast('Alert request failed: ' + err.message, 'error');
                     }
                 }
             });
@@ -1406,6 +1661,8 @@
                 lucide.createIcons();
             } catch (err) {
                 console.error('Failed loading gallery:', err);
+            } finally {
+                hideInitialPageLoader();
             }
         }
 
@@ -1500,14 +1757,14 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ discord_webhook_url: url })
             });
-            alert('Settings saved!');
+            showToast('Settings saved successfully!', 'success');
             closeSettingsModal();
         }
 
         async function testDiscordWebhook() {
             const res = await fetch('/api/test-discord', { method: 'POST' });
             const data = await res.json();
-            alert(data.message);
+            showToast(data.message, data.status === 'success' ? 'success' : 'error');
         }
 
         // WebSocket setup with full bidirectional support

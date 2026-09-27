@@ -60,7 +60,7 @@ class ImageVideoProcessor:
         self,
         image_bytes: bytes,
         model: YOLO,
-        confidence: float = 0.25,
+        confidence: float = 0.15,
         camera_name: str = "Uploaded Image",
         webhook_url: Optional[str] = None
     ) -> Dict[str, Any]:
@@ -73,13 +73,12 @@ class ImageVideoProcessor:
         if img is None:
             return {"success": False, "error": "Could not decode uploaded image file."}
 
-        # Downscale ultra high-res images to max 480px to prevent Render memory/CPU timeouts
+        # Downscale ultra high-res images to max 640px for high-sensitivity multi-object detection
         h, w = img.shape[:2]
-        max_dim = 480
+        max_dim = 640
         if max(h, w) > max_dim:
             scale = max_dim / float(max(h, w))
             img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
-
 
         # Broadcast start progress over WebSocket
         try:
@@ -92,8 +91,9 @@ class ImageVideoProcessor:
         except Exception:
             pass
 
-        # Run YOLO detection for all security classes
-        results = model(img, conf=confidence, classes=SECURITY_CLASS_IDS, verbose=False)
+        # Run YOLO detection with high sensitivity for all security classes
+        results = model(img, conf=confidence, classes=SECURITY_CLASS_IDS, imgsz=640, verbose=False)
+
 
         person_count = 0
         vehicle_count = 0
@@ -224,7 +224,7 @@ class ImageVideoProcessor:
         video_bytes: bytes,
         model: YOLO,
         sample_interval_sec: float = 1.0,
-        confidence: float = 0.25,
+        confidence: float = 0.15,
         camera_name: str = "Uploaded Video",
         webhook_url: Optional[str] = None
     ) -> Dict[str, Any]:
@@ -275,17 +275,15 @@ class ImageVideoProcessor:
             if (current_frame_idx - 1) % frame_step != 0:
                 continue
 
-            # Downscale frame to max 480px for fast tracking on Render CPU
+            # Downscale frame to max 640px for high sensitivity tracking on CPU
             h, w = frame.shape[:2]
-            max_dim = 480
+            max_dim = 640
             if max(h, w) > max_dim:
                 scale = max_dim / float(max(h, w))
                 frame = cv2.resize(frame, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
 
-
             sampled_frame_count += 1
             pct = int((sampled_frame_count / total_sampled_frames) * 100)
-
 
             # Run multi-class tracking on sampled frame using ByteTrack
             try:
@@ -293,12 +291,14 @@ class ImageVideoProcessor:
                     frame,
                     conf=confidence,
                     classes=SECURITY_CLASS_IDS,
+                    imgsz=640,
                     persist=True,
                     tracker="bytetrack.yaml",
                     verbose=False
                 )
             except Exception:
-                results = model(frame, conf=confidence, classes=SECURITY_CLASS_IDS, verbose=False)
+                results = model(frame, conf=confidence, classes=SECURITY_CLASS_IDS, imgsz=640, verbose=False)
+
 
             frame_persons = 0
             frame_vehicles = 0
