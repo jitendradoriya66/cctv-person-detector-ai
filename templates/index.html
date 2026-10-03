@@ -1515,6 +1515,11 @@
                 }
             };
 
+            xhr.upload.onload = function() {
+                if (bar) bar.style.width = '30%';
+                if (text) text.innerText = 'RUNNING AI TRACKING & INFERENCE...';
+            };
+
             xhr.onload = function() {
                 let data;
                 try {
