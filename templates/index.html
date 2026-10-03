@@ -1424,8 +1424,8 @@
             }
         }
 
-        // Image Upload
-        async function handleImageUpload(file) {
+        // Image Upload with Network Progress
+        function handleImageUpload(file) {
             if (!file) return;
 
             const formData = new FormData();
@@ -1435,24 +1435,31 @@
 
             const container = document.getElementById('imageResultContainer');
             const loader = document.getElementById('imageLoader');
+            const text = document.getElementById('imageStatusText');
             const display = document.getElementById('imageResultDisplay');
 
             container.style.display = 'flex';
             loader.style.display = 'flex';
+            if (text) text.innerText = 'UPLOADING IMAGE FILE: 0%';
 
-            try {
-                const res = await fetch('/api/upload-image', {
-                    method: 'POST',
-                    body: formData
-                });
-                const text = await res.text();
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/api/upload-image', true);
+
+            xhr.upload.onprogress = function(e) {
+                if (e.lengthComputable) {
+                    const uploadPct = Math.round((e.loaded / e.total) * 100);
+                    if (text) text.innerText = `UPLOADING IMAGE FILE: ${uploadPct}%`;
+                }
+            };
+
+            xhr.onload = function() {
+                loader.style.display = 'none';
                 let data;
                 try {
-                    data = JSON.parse(text);
+                    data = JSON.parse(xhr.responseText);
                 } catch(e) {
-                    data = { success: false, error: 'Server returned non-JSON response: ' + text.substring(0, 150) };
+                    data = { success: false, error: 'Server returned non-JSON response: ' + xhr.responseText.substring(0, 150) };
                 }
-                loader.style.display = 'none';
 
                 if (data.success) {
                     display.src = data.annotated_image_url + '?t=' + Date.now();
@@ -1463,14 +1470,18 @@
                 } else {
                     showToast('Image analysis error: ' + (data.error || 'Unknown error'), 'error');
                 }
-            } catch (err) {
+            };
+
+            xhr.onerror = function() {
                 loader.style.display = 'none';
-                showToast('Upload failed: ' + err.message, 'error');
-            }
+                showToast('Upload failed due to network error.', 'error');
+            };
+
+            xhr.send(formData);
         }
 
-        // Video Upload
-        async function handleVideoUpload(file) {
+        // Video Upload with 2-Phase Progress (Upload -> AI Frame Tracking)
+        function handleVideoUpload(file) {
             if (!file) return;
 
             const sampleInterval = document.getElementById('videoSampleSelect').value;
@@ -1482,26 +1493,43 @@
 
             const container = document.getElementById('videoResultContainer');
             const loader = document.getElementById('videoLoader');
+            const bar = document.getElementById('videoProgressBar');
+            const text = document.getElementById('videoProgressText');
             const display = document.getElementById('videoResultDisplay');
 
             container.style.display = 'flex';
             loader.style.display = 'flex';
+            if (bar) bar.style.width = '0%';
+            if (text) text.innerText = 'UPLOADING VIDEO FILE: 0%';
 
-            try {
-                const res = await fetch('/api/upload-video', {
-                    method: 'POST',
-                    body: formData
-                });
-                const text = await res.text();
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/api/upload-video', true);
+
+            xhr.upload.onprogress = function(e) {
+                if (e.lengthComputable) {
+                    const uploadPct = Math.round((e.loaded / e.total) * 100);
+                    // Network upload takes 0% -> 30% of progress bar
+                    const scaledUploadPct = Math.round(uploadPct * 0.3);
+                    if (bar) bar.style.width = Math.min(30, scaledUploadPct) + '%';
+                    if (text) text.innerText = `UPLOADING VIDEO FILE: ${uploadPct}%`;
+                }
+            };
+
+            xhr.onload = function() {
                 let data;
                 try {
-                    data = JSON.parse(text);
+                    data = JSON.parse(xhr.responseText);
                 } catch(e) {
-                    data = { success: false, error: 'Server returned non-JSON response: ' + text.substring(0, 150) };
+                    data = { success: false, error: 'Server returned non-JSON response: ' + xhr.responseText.substring(0, 150) };
                 }
-                loader.style.display = 'none';
 
                 if (data.success) {
+                    if (bar) bar.style.width = '100%';
+                    if (text) text.innerText = 'PROCESSING COMPLETE (100%)';
+                    setTimeout(() => {
+                        if (loader) loader.style.display = 'none';
+                    }, 500);
+
                     if (data.events && data.events.length > 0) {
                         display.src = data.events[0].screenshot_url + '?t=' + Date.now();
                         renderKeyframeThumbnails(data.events);
@@ -1511,12 +1539,17 @@
                     loadEventsGallery(1);
                     showToast(`Video tracking complete! Found ${data.unique_persons_tracked} unique person tracks.`, 'success');
                 } else {
+                    loader.style.display = 'none';
                     showToast('Video analysis error: ' + (data.error || 'Unknown error'), 'error');
                 }
-            } catch (err) {
+            };
+
+            xhr.onerror = function() {
                 loader.style.display = 'none';
-                showToast('Upload failed: ' + err.message, 'error');
-            }
+                showToast('Upload failed due to network error.', 'error');
+            };
+
+            xhr.send(formData);
         }
 
         // Webcam controls
@@ -1868,23 +1901,27 @@
                         updateResultsPanel(data.persons_count, 0.90, 1, data.annotated_image);
                     } else if (data.type === 'PROCESSING_PROGRESS') {
                         if (data.task === 'VIDEO') {
-                            const pct = Math.min(100, Math.max(0, data.progress_pct || 0));
+                            const rawPct = Math.min(100, Math.max(0, data.progress_pct || 0));
                             const container = document.getElementById('videoResultContainer');
                             const loader = document.getElementById('videoLoader');
                             const bar = document.getElementById('videoProgressBar');
                             const text = document.getElementById('videoProgressText');
 
                             if (container) container.style.display = 'flex';
-                            if (loader && pct < 100) loader.style.display = 'flex';
-                            if (bar) bar.style.width = pct + '%';
+                            if (loader && rawPct < 100) loader.style.display = 'flex';
+
+                            // Remap AI inference progress (0% - 100%) to progress bar range (30% - 99%)
+                            const scaledPct = Math.round(30 + (rawPct * 0.69));
+                            if (bar) bar.style.width = Math.min(99, scaledPct) + '%';
                             if (text) {
-                                text.innerText = data.status_text || `PROCESSING VIDEO: ${pct}% (${data.sampled_frame || 0}/${data.total_sampled || 0} Frames) • ${data.persons_detected || 0} Persons Tracked`;
+                                text.innerText = data.status_text || `PROCESSING VIDEO: ${rawPct}% (${data.sampled_frame || 0}/${data.total_sampled || 0} Frames) • ${data.persons_detected || 0} Persons Tracked`;
                             }
                             if (data.latest_screenshot_url) {
                                 const display = document.getElementById('videoResultDisplay');
                                 if (display) display.src = data.latest_screenshot_url + '?t=' + Date.now();
                             }
-                            if (pct >= 100) {
+                            if (rawPct >= 100) {
+                                if (bar) bar.style.width = '100%';
                                 setTimeout(() => {
                                     if (loader) loader.style.display = 'none';
                                 }, 800);
