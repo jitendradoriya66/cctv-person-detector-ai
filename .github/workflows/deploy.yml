@@ -10,40 +10,27 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Execute Remote SSH Commands to Update EC2
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Setup SSH Key
+        uses: webfactory/ssh-agent@v0.9.0
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          port: 22
-          script_stop: false
-          script: |
-            echo "🚀 Starting automated deployment on AWS EC2..."
-            
-            # Find repository directory
+          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
+
+      - name: Deploy via SSH
+        run: |
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} << 'EOF'
+            echo "🚀 Deployment started on EC2..."
             if [ -d "$HOME/cctv-person-detector-ai" ]; then
               cd "$HOME/cctv-person-detector-ai"
-            elif [ -d "/root/cctv-person-detector-ai" ]; then
-              cd "/root/cctv-person-detector-ai"
-            else
-              cd "$HOME"
             fi
-
-            echo "📂 Working directory: $(pwd)"
             git pull origin main
-
-            # Activate virtual environment if present
             if [ -f "venv/bin/activate" ]; then
               source venv/bin/activate
             fi
-
-            # Restart uvicorn server on port 8000
             pkill -f uvicorn || true
             sleep 1
             nohup python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 > server.log 2>&1 &
-            
-            echo "✅ Deployment complete! Server updated and restarted."
+            echo "✅ Deployment complete!"
+          EOF
