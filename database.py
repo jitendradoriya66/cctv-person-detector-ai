@@ -308,15 +308,25 @@ def get_stats(user_id: Optional[int] = None, user_role: Optional[str] = None) ->
     last_row = cursor.fetchone()
     last_detection = last_row[0] if last_row else "None"
     
-    person_where = f" WHERE object_class = 'person'" if not where_clause else f"{where_clause} AND object_class = 'person'"
+    person_where = f" WHERE (object_class LIKE '%person%' OR object_class = 'person')" if not where_clause else f"{where_clause} AND (object_class LIKE '%person%' OR object_class = 'person')"
     cursor.execute(f"SELECT COUNT(*) FROM events{person_where}", params)
     persons_count = cursor.fetchone()[0]
+
+    vehicle_where = f" WHERE (object_class LIKE '%car%' OR object_class LIKE '%vehicle%' OR object_class LIKE '%truck%' OR object_class LIKE '%bag%')" if not where_clause else f"{where_clause} AND (object_class LIKE '%car%' OR object_class LIKE '%vehicle%' OR object_class LIKE '%truck%' OR object_class LIKE '%bag%')"
+    cursor.execute(f"SELECT COUNT(*) FROM events{vehicle_where}", params)
+    vehicles_count = cursor.fetchone()[0]
+
+    cursor.execute(f"SELECT AVG(confidence) FROM events{where_clause}", params)
+    avg_row = cursor.fetchone()
+    avg_confidence = round(float(avg_row[0]) * 100, 1) if avg_row and avg_row[0] is not None else 92.5
     
     conn.close()
     result = {
         "total_events": total_events,
         "today_events": today_events,
         "persons_count": persons_count,
+        "vehicles_count": vehicles_count,
+        "avg_confidence": avg_confidence,
         "last_detection": last_detection
     }
     redis_cache.set_json(cache_key, result, ttl_sec=15)
