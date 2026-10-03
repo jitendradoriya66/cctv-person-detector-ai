@@ -19,13 +19,31 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script_stop: false
           script: |
             echo "🚀 Starting automated deployment on AWS EC2..."
+            
+            # Find repository directory
             if [ -d "$HOME/cctv-person-detector-ai" ]; then
               cd "$HOME/cctv-person-detector-ai"
+            elif [ -d "/root/cctv-person-detector-ai" ]; then
+              cd "/root/cctv-person-detector-ai"
+            else
+              cd "$HOME"
             fi
+
+            echo "📂 Working directory: $(pwd)"
             git pull origin main
-            source venv/bin/activate || true
+
+            # Activate virtual environment if present
+            if [ -f "venv/bin/activate" ]; then
+              source venv/bin/activate
+            fi
+
+            # Restart uvicorn server on port 8000
             pkill -f uvicorn || true
+            sleep 1
             nohup python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 > server.log 2>&1 &
-            echo "✅ Deployment complete! Server updated and restarted on port 8000."
+            
+            echo "✅ Deployment complete! Server updated and restarted."
