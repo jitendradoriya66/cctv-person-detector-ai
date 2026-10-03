@@ -6,8 +6,10 @@ venv/
 env/
 ENV/
 
-# Environment variables
+# Environment variables & Keys
 .env
+*.pem
+*.key
 
 # Database
 *.db
