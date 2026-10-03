@@ -305,6 +305,8 @@ class ImageVideoProcessor:
 
             frame_persons = 0
             frame_vehicles = 0
+            frame_boxes_data = []
+            new_person_tracks = []
 
             # Process detection results if boxes are present
             if results and len(results) > 0 and results[0].boxes is not None:
